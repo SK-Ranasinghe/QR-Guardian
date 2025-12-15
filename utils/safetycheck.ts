@@ -1,7 +1,7 @@
 // utils/safetyCheck.ts
 import Constants from 'expo-constants';
 import { BRAND_PATTERNS } from './brandDatabase';
-import { getCachedResult, setCachedResult } from './cache';
+import { setCachedResult } from './cache';
 import { getScanHistory } from './historyService';
 import { sendThreatUpdateNotification } from './notificationService';
 
@@ -12,6 +12,44 @@ export interface SafetyResult {
   score: number;
   threats: string[];
 }
+
+// Shannon entropy helper for DGA / randomness detection
+const calculateEntropy = (value: string): number => {
+  const clean = value.toLowerCase().trim();
+  if (!clean) return 0;
+
+  const freq: Record<string, number> = {};
+  for (const ch of clean) {
+    freq[ch] = (freq[ch] || 0) + 1;
+  }
+
+  const length = clean.length;
+  let entropy = 0;
+
+  Object.values(freq).forEach((count) => {
+    const p = count / length;
+    entropy -= p * Math.log2(p);
+  });
+
+  // === XSS / INJECTION FILTER (RAW PAYLOAD) ===
+
+  const xssPatterns: RegExp[] = [
+    /javascript:/i,
+    /vbscript:/i,
+    /<script/i,
+    /eval\s*\(/i,
+    /document\.cookie/i,
+  ];
+
+  const hasXss = xssPatterns.some((regex) => regex.test(value));
+
+  if (hasXss) {
+    const before = 0;
+    console.log('🚫 XSS / injection pattern detected', { value, scoreBefore: before, scoreAfter: 0 });
+  }
+
+  return entropy;
+};
 
 // Read API key from config
 const API_KEY = Constants.expoConfig?.extra?.googleSafeBrowsingApiKey;
@@ -150,13 +188,6 @@ export const monitorThreatChanges = async (url: string, currentResult: SafetyRes
 };
 
 export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
-  // Check cache first
-  const cached = getCachedResult(url);
-  if (cached) {
-    console.log('📦 Using cached result for:', url);
-    return cached;
-  }
-
   console.log('🔍 Analyzing URL:', url);
   
   const issues: string[] = [];
@@ -167,15 +198,69 @@ export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
 
   // === LAYER 1: SCHEME PARSER (HIDDEN ACTIONS) ===
 
-  // Wi-Fi Config (WIFI:)
-  if (lowerUrl.startsWith('wifi:')) {
+  // Wi-Fi Config (WIFI:) – detect even if embedded in a larger payload
+  const wifiIndex = lowerUrl.indexOf('wifi:');
+  if (wifiIndex !== -1) {
+    const wifiPayload = url.slice(wifiIndex); // start from WIFI: onwards
     const before = score;
-    const ssidMatch = url.match(/S:([^;]*)/i);
+    const ssidMatch = wifiPayload.match(/S:([^;]*)/i);
     const ssid = ssidMatch && ssidMatch[1] ? ssidMatch[1] : 'unknown network';
+
     issues.push(`⚠️ Network Config: Attempting to connect to Wi-Fi network '${ssid}'.`);
     score -= 20;
-    console.log('📡 Wi-Fi scheme detected', { ssid, scoreBefore: before, scoreAfter: score });
-    if (minRating === 'SAFE') minRating = 'CAUTION';
+
+    // Detect insecure Wi-Fi security types (WEP / open networks)
+    const typeMatch = wifiPayload.match(/T:([^;]*)/i);
+    const securityType = typeMatch && typeMatch[1] ? typeMatch[1].toUpperCase() : 'NOPASS';
+
+    if (securityType === 'WEP' || securityType === 'NOPASS') {
+      const beforeInsecure = score;
+      issues.push('⚠️ Risk: Vulnerable network protocol (WEP/Open Wi‑Fi).');
+      score -= 30;
+      console.log('📡 Insecure Wi‑Fi security detected', {
+        ssid,
+        securityType,
+        scoreBefore: beforeInsecure,
+        scoreAfter: score,
+      });
+      minRating = 'DANGEROUS';
+    } else if (minRating === 'SAFE') {
+      minRating = 'CAUTION';
+    }
+
+    console.log('📡 Wi‑Fi scheme detected', { ssid, scoreBefore: before, scoreAfter: score });
+  } else {
+    // Heuristic: some scanners decode Wi‑Fi QR into plain "SSID PASSWORD" text.
+    // If it looks like two tokens and not a URL, treat it as a Wi‑Fi style payload.
+    const looksLikeWifiText =
+      !lowerUrl.includes('://') &&
+      !lowerUrl.startsWith('tel:') &&
+      !lowerUrl.startsWith('smsto:');
+
+    const parts = url.trim().split(/\s+/);
+
+    if (looksLikeWifiText && parts.length === 2) {
+      const [ssidText, passwordText] = parts;
+      const before = score;
+      issues.push(
+        `⚠️ Network Config: QR appears to share Wi-Fi access for network '${ssidText}'.`,
+      );
+      score -= 20;
+
+      issues.push('⚠️ Risk: Wi‑Fi credentials shared in plain text via QR. Treat this network as untrusted.');
+      score -= 20;
+
+      console.log('📡 Heuristic Wi‑Fi pattern detected', {
+        ssid: ssidText,
+        passwordLength: passwordText.length,
+        scoreBefore: before,
+        scoreAfter: score,
+      });
+
+      if (minRating === 'SAFE') {
+        minRating = 'CAUTION';
+      }
+    }
   }
 
   // Premium SMS (SMSTO:)
@@ -237,9 +322,56 @@ export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
     }
   }
 
-  // === LAYER 2: TYPOSQUATTING DETECTOR (FAKE BRANDS) ===
+  // === LAYER 2: DOMAIN ANALYSIS (TYPOSQUATTING, DGA, ETC.) ===
 
   const domain = extractDomain(url).toLowerCase();
+
+  // DGA / high-entropy detector (Shannon entropy)
+  const entropySample = domain.replace(/[^a-z0-9]/g, '');
+  if (entropySample.length >= 6) {
+    const entropy = calculateEntropy(entropySample);
+    console.log('📈 Entropy analysis:', { domain, entropySample, entropy });
+
+    // Entropy levels:
+    // - LOW:    3.2 – 3.6  (slightly random)
+    // - MEDIUM: 3.6 – 3.8  (suspicious)
+    // - HIGH:   >= 3.8     (very random / DGA-like)
+
+    let entropyLevel: 'LOW' | 'MEDIUM' | 'HIGH' | null = null;
+    let entropyPenalty = 0;
+
+    if (entropy >= 3.8) {
+      entropyLevel = 'HIGH';
+      entropyPenalty = 20;
+    } else if (entropy >= 3.6) {
+      entropyLevel = 'MEDIUM';
+      entropyPenalty = 10;
+    } else if (entropy >= 3.2) {
+      entropyLevel = 'LOW';
+      entropyPenalty = 5;
+    }
+
+    if (entropyLevel) {
+      const before = score;
+      const levelLabel =
+        entropyLevel === 'HIGH' ? 'High' : entropyLevel === 'MEDIUM' ? 'Medium' : 'Low';
+      issues.push(
+        `⚠️ Entropy (${levelLabel}): Domain appears random or bot-generated (possible DGA).`,
+      );
+      score -= entropyPenalty;
+      console.log('🤖 Entropy-based domain risk detected', {
+        domain,
+        entropy,
+        entropyLevel,
+        entropyPenalty,
+        scoreBefore: before,
+        scoreAfter: score,
+      });
+      if (entropyLevel !== 'LOW' && minRating === 'SAFE') {
+        minRating = 'CAUTION';
+      }
+    }
+  }
 
   // IDN / Homograph Attack Detector (Punycode)
   if (domain.startsWith('xn--')) {
@@ -300,6 +432,26 @@ export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
     if (minRating === 'SAFE') minRating = 'CAUTION';
   }
 
+  // === XSS / INJECTION FILTER (RAW PAYLOAD) ===
+
+  const xssPatterns: RegExp[] = [
+    /javascript:/i,
+    /vbscript:/i,
+    /<script/i,
+    /eval\s*\(/i,
+    /document\.cookie/i,
+  ];
+
+  const hasXss = xssPatterns.some((regex) => regex.test(url));
+
+  if (hasXss) {
+    const before = score;
+    issues.push('🚫 Critical: Malicious code injection detected (XSS-style payload).');
+    score -= 50;
+    console.log('🚫 XSS / injection pattern detected', { url, scoreBefore: before, scoreAfter: score });
+    minRating = 'DANGEROUS';
+  }
+
   // === EXISTING HEURISTICS (URL structure, TLDs, etc.) ===
 
   // 1. URL Shorteners (HIGH RISK)
@@ -335,6 +487,29 @@ export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
     issues.push('⚠️ Uses HTTP (not secure) instead of HTTPS');
     score -= 25;
     console.log('🌐 Insecure HTTP detected', { scoreBefore: before, scoreAfter: score });
+  }
+
+  // 3b. Open Redirect detector (URL inside URL)
+  const firstHttpIndex = lowerUrl.indexOf('http://');
+  const firstHttpsIndex = lowerUrl.indexOf('https://');
+  const firstIndex =
+    firstHttpIndex === -1
+      ? firstHttpsIndex
+      : firstHttpsIndex === -1
+      ? firstHttpIndex
+      : Math.min(firstHttpIndex, firstHttpsIndex);
+
+  if (firstIndex !== -1) {
+    const rest = lowerUrl.slice(firstIndex + 8); // skip initial scheme roughly
+    const nestedHttpIndex = rest.search(/https?:\/\//);
+
+    if (nestedHttpIndex !== -1) {
+      const before = score;
+      issues.push('⚠️ Caution: Possible open redirect detected (URL parameter contains another URL).');
+      score -= 30;
+      console.log('🔁 Open redirect pattern detected', { url, scoreBefore: before, scoreAfter: score });
+      if (minRating === 'SAFE') minRating = 'CAUTION';
+    }
   }
 
   // 3. Scam/Phishing Keywords (HIGH RISK)

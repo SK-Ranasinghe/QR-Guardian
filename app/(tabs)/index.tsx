@@ -57,6 +57,9 @@ export default function TabOneScreen() {
 
     setIsAnalyzing(false);
 
+    // Ensure torch is turned off when leaving the scanner
+    setIsTorchOn(false);
+
     // Navigate to dedicated result screen, passing data via params
     router.push({
       pathname: '/result',
@@ -124,14 +127,24 @@ export default function TabOneScreen() {
           {/* Flashlight Toggle */}
           <View style={styles.flashContainer}>
             <TouchableOpacity
-              style={[styles.flashButton, isTorchOn && styles.flashButtonActive]}
+              style={[styles.flashPill, isTorchOn && styles.flashPillActive]}
               onPress={() => setIsTorchOn((prev) => !prev)}
+              activeOpacity={0.9}
             >
-              <Ionicons
-                name={isTorchOn ? 'flashlight' : 'flashlight-outline'}
-                size={20}
-                color={isTorchOn ? '#000000' : '#FFFFFF'}
-              />
+              <View style={styles.flashPillInner}>
+                <View
+                  style={[
+                    styles.flashIconWrapper,
+                    isTorchOn && styles.flashIconWrapperActive,
+                  ]}
+                >
+                  <Ionicons
+                    name={isTorchOn ? 'flash' : 'flash-off'}
+                    size={18}
+                    color={isTorchOn ? '#000000' : '#FFD60A'}
+                  />
+                </View>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -309,19 +322,43 @@ const styles = StyleSheet.create({
     bottom: 20,
     right: 20,
   },
-  flashButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  flashPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  flashPillActive: {
+    borderColor: '#FFD60A',
+    backgroundColor: 'rgba(255,214,10,0.15)',
+  },
+  flashPillInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  flashIconWrapper: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,214,10,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
   },
-  flashButtonActive: {
+  flashIconWrapperActive: {
     backgroundColor: '#FFD60A',
-    borderColor: '#FFD60A',
+  },
+  flashLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '500',
   },
   scanAgainButton: {
     backgroundColor: '#007AFF',

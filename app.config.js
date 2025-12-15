@@ -8,6 +8,10 @@ export default {
   orientation: "portrait",
   extra: {
     googleSafeBrowsingApiKey: process.env.GOOGLE_SAFE_BROWSING_API_KEY,
+    virusTotalApiKey: process.env.VIRUSTOTAL_API_KEY,
+    geminiApiKey: process.env.GEMINI_API_KEY,
+    geminiModel: process.env.GEMINI_MODEL,
+    ip2LocationApiKey: process.env.IP2LOCATION_API_KEY,
   },
   plugins: [
       "expo-router",
