@@ -37,11 +37,12 @@ export const scheduleWeeklyReport = async () => {
         data: { type: 'weekly_report' },
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
         repeats: true,
-        weekday: 0, // Sunday
+        weekday: 1, // Sunday; 1-7 (Mon-Sun) per Expo docs
         hour: 10,
         minute: 0,
-      } as any, // Type workaround
+      } as Notifications.WeeklyTriggerInput,
     });
   } catch (error) {
     console.error('Error scheduling weekly report:', error);
@@ -87,8 +88,10 @@ export const sendSecurityTip = async () => {
       data: { type: 'security_tip' },
     },
     trigger: {
-      seconds: 86400, // 24 hours from now
-    } as any, // Type workaround
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 86400, // 24 hours
+      repeats: true,
+    } as Notifications.TimeIntervalTriggerInput,
   });
 };
 
