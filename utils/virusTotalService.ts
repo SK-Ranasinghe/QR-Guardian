@@ -23,17 +23,20 @@ export interface VirusTotalSummary {
 }
 
 const VT_API_KEY = Constants.expoConfig?.extra?.virusTotalApiKey as string | undefined;
+const VT_LOG_SEPARATOR = '-'.repeat(72);
 
 export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary | null> => {
-  console.log('🧪 [VirusTotal] Starting deep scan for URL:', url);
-
-  if (!VT_API_KEY) {
-    console.log('⚠️ [VirusTotal] API key is not configured in app.config.js');
-    return null;
-  }
-
   try {
-    // VirusTotal v3: first submit URL to get an analysis id
+    console.log(`\n${VT_LOG_SEPARATOR}`);
+    console.log('🧪 [VirusTotal] Deep scan start');
+    console.log('🔗 [VirusTotal] URL:', url);
+    console.log(VT_LOG_SEPARATOR);
+
+    if (!VT_API_KEY) {
+      console.log('⚠️ [VirusTotal] API key is not configured in app.config.js');
+      return null;
+    }
+
     const submitResponse = await fetch('https://www.virustotal.com/api/v3/urls', {
       method: 'POST',
       headers: {
@@ -56,9 +59,8 @@ export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary 
       return null;
     }
 
-    console.log('🧪 [VirusTotal] Analysis ID received:', analysisId);
+    console.log('🆔 [VirusTotal] Analysis ID:', analysisId);
 
-    // Poll the analysis result until it is completed (with a tight retry budget)
     let analysisJson: any | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       const analysisResponse = await fetch(`https://www.virustotal.com/api/v3/analyses/${analysisId}`, {
@@ -80,7 +82,6 @@ export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary 
         break;
       }
 
-      // Wait a short time before next poll to keep UX responsive
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
@@ -89,9 +90,8 @@ export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary 
       return null;
     }
 
-    console.log('🧪 [VirusTotal] Full analysis payload:', JSON.stringify(analysisJson, null, 2));
+    console.log('📨 [VirusTotal] Full analysis payload:', JSON.stringify(analysisJson, null, 2));
 
-    // Try to resolve the canonical URL object so we can mirror what the VT web UI shows.
     const urlId: string | undefined =
       analysisJson?.data?.relationships?.url?.data?.id;
 
@@ -108,7 +108,7 @@ export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary 
         if (urlResponse.ok) {
           const urlJson: any = await urlResponse.json();
           urlAttributes = urlJson?.data?.attributes || null;
-          console.log('🧪 [VirusTotal] URL report payload:', JSON.stringify(urlJson, null, 2));
+          console.log('📄 [VirusTotal] URL report payload:', JSON.stringify(urlJson, null, 2));
         } else {
           console.log(
             '⚠️ [VirusTotal] URL report fetch failed with status',
@@ -122,7 +122,6 @@ export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary 
       console.log('⚠️ [VirusTotal] No URL relationship found on analysis payload');
     }
 
-    // Prefer stats from the URL report (matches VT web UI), fall back to analysis stats.
     const attributes = analysisJson?.data?.attributes || {};
     const stats =
       urlAttributes?.last_analysis_stats ||
@@ -207,5 +206,7 @@ export const runVirusTotalScan = async (url: string): Promise<VirusTotalSummary 
   } catch (error) {
     console.log('❌ [VirusTotal] Unexpected error during deep scan:', error);
     return null;
+  } finally {
+    console.log(`${VT_LOG_SEPARATOR}\n`);
   }
 };

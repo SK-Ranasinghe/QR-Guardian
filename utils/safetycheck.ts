@@ -188,12 +188,17 @@ export const monitorThreatChanges = async (url: string, currentResult: SafetyRes
 };
 
 export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
-  console.log('🔍 Analyzing URL:', url);
+  const scanSeparator = '='.repeat(72);
+  console.log(`\n${scanSeparator}`);
+  console.log(`🔍 [SCAN START] ${new Date().toISOString()}`);
+  console.log('🔗 URL:', url);
+  console.log(scanSeparator);
   
   const issues: string[] = [];
   let score = 100;
   let threats: string[] = [];
   let minRating: 'SAFE' | 'CAUTION' | 'DANGEROUS' = 'SAFE';
+  
   const lowerUrl = url.toLowerCase();
 
   // === LAYER 1: SCHEME PARSER (HIDDEN ACTIONS) ===
@@ -594,6 +599,7 @@ export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
     issues: issues.length, 
     threats: threats.length 
   });
+  console.log(`${scanSeparator}\n`);
 
   const result = {
     isSafe: rating === 'SAFE',

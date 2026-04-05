@@ -17,6 +17,7 @@ export interface Ip2LocationDomainInfo {
 const IP2L_API_KEY = Constants.expoConfig?.extra?.ip2LocationApiKey as string | undefined;
 
 const VERY_NEW_THRESHOLD_DAYS = 7;
+const IP2L_LOG_SEPARATOR = '-'.repeat(72);
 
 const parseDate = (value?: string | null): Date | undefined => {
   if (!value) return undefined;
@@ -25,30 +26,35 @@ const parseDate = (value?: string | null): Date | undefined => {
 };
 
 export const fetchDomainIntel = async (urlOrDomain: string): Promise<Ip2LocationDomainInfo | null> => {
-  console.log('[IP2LOCATION] Starting domain intelligence for:', urlOrDomain);
-
-  if (!IP2L_API_KEY) {
-    console.log('[IP2LOCATION] API key is not configured in app.config.js');
-    return null;
-  }
-
-  // Extract bare domain from URL or raw text
   let domain = urlOrDomain.trim().toLowerCase();
+
   try {
+    console.log(`\n${IP2L_LOG_SEPARATOR}`);
+    console.log('🌐 [IP2LOCATION] Domain intelligence start');
+    console.log('🔗 [IP2LOCATION] Input:', urlOrDomain);
+    console.log(IP2L_LOG_SEPARATOR);
+
+    if (!IP2L_API_KEY) {
+      console.log('⚠️ [IP2LOCATION] API key is not configured in app.config.js');
+      return null;
+    }
+
     if (!domain.startsWith('http://') && !domain.startsWith('https://')) {
       domain = 'http://' + domain;
     }
-    const obj = new URL(domain);
-    domain = obj.hostname;
-  } catch {
-    const match = domain.match(/(?:https?:\/\/)?([^\/:?#]+)/);
-    if (match?.[1]) domain = match[1];
-  }
 
-  // Strip www.
-  if (domain.startsWith('www.')) domain = domain.slice(4);
+    try {
+      const obj = new URL(domain);
+      domain = obj.hostname;
+    } catch {
+      const match = domain.match(/(?:https?:\/\/)?([^\/:?#]+)/);
+      if (match?.[1]) domain = match[1];
+    }
 
-  try {
+    if (domain.startsWith('www.')) domain = domain.slice(4);
+
+    console.log('🧭 [IP2LOCATION] Normalized domain:', domain);
+
     const endpoint = `https://api.ip2whois.com/v2?key=${encodeURIComponent(IP2L_API_KEY)}&domain=${encodeURIComponent(
       domain,
     )}`;
@@ -62,6 +68,7 @@ export const fetchDomainIntel = async (urlOrDomain: string): Promise<Ip2Location
     }
 
     const data: any = await response.json();
+    console.log('📨 [IP2LOCATION] Raw WHOIS payload:', data);
 
     const created = parseDate(data.creation_date || data.domain_created || data.create_date);
     const updated = parseDate(data.updated_date || data.domain_updated || data.update_date);
@@ -98,10 +105,12 @@ export const fetchDomainIntel = async (urlOrDomain: string): Promise<Ip2Location
       raw: data,
     };
 
-    console.log('[IP2LOCATION] Parsed domain info:', info);
+    console.log('✅ [IP2LOCATION] Parsed domain info:', info);
     return info;
   } catch (error) {
-    console.log('[IP2LOCATION] Unexpected error while fetching domain intel:', error);
+    console.log('❌ [IP2LOCATION] Unexpected error while fetching domain intel:', error);
     return null;
+  } finally {
+    console.log(`${IP2L_LOG_SEPARATOR}\n`);
   }
 }

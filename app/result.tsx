@@ -104,6 +104,32 @@ const getEngineVerdictLabel = (category: string, result: string): string => {
   return result || category || 'UNKNOWN';
 };
 
+const getAiAccentColor = (value: GeminiAiInsight['verdict']) => {
+  switch (value) {
+    case 'SAFE':
+      return '#22C55E';
+    case 'SUSPICIOUS':
+      return '#FACC15';
+    case 'NEUTRAL':
+      return '#38BDF8';
+    default:
+      return '#F87171';
+  }
+};
+
+const getAiVerdictIcon = (value: GeminiAiInsight['verdict']) => {
+  switch (value) {
+    case 'SAFE':
+      return 'shield-checkmark';
+    case 'SUSPICIOUS':
+      return 'alert-circle';
+    case 'NEUTRAL':
+      return 'sparkles';
+    default:
+      return 'warning';
+  }
+};
+
 export default function ResultScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -711,13 +737,23 @@ export default function ResultScreen() {
         {aiInsight && (
           <View style={styles.aiCardWrapper}>
             <BlurView intensity={40} tint="dark" style={styles.aiBlurCard}>
+              <View
+                style={[
+                  styles.aiAccentBar,
+                  { backgroundColor: getAiAccentColor(aiInsight.verdict) },
+                ]}
+              />
               <View style={styles.aiHeaderRow}>
                 <View style={styles.aiIconCircle}>
-                  <Ionicons name="shield" size={18} color="#38BDF8" />
+                  <Ionicons
+                    name={getAiVerdictIcon(aiInsight.verdict)}
+                    size={18}
+                    color={getAiAccentColor(aiInsight.verdict)}
+                  />
                 </View>
                 <View style={styles.aiHeaderTextGroup}>
                   <Text style={styles.aiTitle}>AI Insight</Text>
-                  <Text style={styles.aiSubtitle}>Gemini 1.5 Flash analysis</Text>
+                  <Text style={styles.aiSubtitle}>Phishing, deception & intent analysis</Text>
                 </View>
                 <View
                   style={[
@@ -726,10 +762,23 @@ export default function ResultScreen() {
                       ? styles.aiVerdictSafe
                       : aiInsight.verdict === 'SUSPICIOUS'
                       ? styles.aiVerdictSuspicious
+                      : aiInsight.verdict === 'NEUTRAL'
+                      ? styles.aiVerdictNeutral
                       : styles.aiVerdictDangerous,
                   ]}
                 >
                   <Text style={styles.aiVerdictText}>{aiInsight.verdict}</Text>
+                </View>
+              </View>
+
+              <View style={styles.aiMetaRow}>
+                <View style={styles.aiMetaChip}>
+                  <Text style={styles.aiMetaLabel}>Threat type</Text>
+                  <Text style={styles.aiMetaValue}>{aiInsight.threatType}</Text>
+                </View>
+                <View style={styles.aiMetaChip}>
+                  <Text style={styles.aiMetaLabel}>Risk score</Text>
+                  <Text style={styles.aiMetaValue}>{Math.round(aiInsight.riskScore)}/100</Text>
                 </View>
               </View>
 
@@ -739,8 +788,8 @@ export default function ResultScreen() {
               </View>
 
               <View style={styles.aiRiskRow}>
-                <Text style={styles.aiRiskLabel}>Risk score</Text>
-                <Text style={styles.aiRiskValue}>{Math.round(aiInsight.riskScore)}/100</Text>
+                <Text style={styles.aiRiskLabel}>AI confidence meter</Text>
+                <Text style={styles.aiRiskValue}>{aiInsight.verdict}</Text>
               </View>
               <View style={styles.aiRiskBarTrack}>
                 <View
@@ -748,18 +797,13 @@ export default function ResultScreen() {
                     styles.aiRiskBarFill,
                     {
                       width: `${Math.max(0, Math.min(100, aiInsight.riskScore))}%`,
-                      backgroundColor:
-                        aiInsight.riskScore < 40
-                          ? '#22C55E'
-                          : aiInsight.riskScore < 70
-                          ? '#FACC15'
-                          : '#EF4444',
+                      backgroundColor: getAiAccentColor(aiInsight.verdict),
                     },
                   ]}
                 />
               </View>
 
-              <Text style={styles.aiThreatTypeText}>Threat type: {aiInsight.threatType}</Text>
+              <Text style={styles.aiThreatTypeText}>AI reasoning is advisory and should be considered together with QR Guardian's rule-based checks.</Text>
             </BlurView>
           </View>
         )}
@@ -1291,11 +1335,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   aiBlurCard: {
-    padding: 16,
+    padding: 18,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.35)',
     backgroundColor: 'rgba(15,23,42,0.85)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  aiAccentBar: {
+    height: 4,
+    borderRadius: 999,
+    marginBottom: 16,
   },
   aiHeaderRow: {
     flexDirection: 'row',
@@ -1303,37 +1357,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   aiIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(56,189,248,0.16)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(148,163,184,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.2)',
   },
   aiHeaderTextGroup: {
     flex: 1,
   },
   aiTitle: {
     color: '#E5E7EB',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
   aiSubtitle: {
     color: '#9CA3AF',
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   aiVerdictPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   aiVerdictSafe: {
     backgroundColor: 'rgba(34,197,94,0.18)',
   },
   aiVerdictSuspicious: {
     backgroundColor: 'rgba(250,204,21,0.18)',
+  },
+  aiVerdictNeutral: {
+    backgroundColor: 'rgba(56,189,248,0.18)',
   },
   aiVerdictDangerous: {
     backgroundColor: 'rgba(248,113,113,0.18)',
@@ -1342,22 +1403,54 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 11,
     fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  aiMetaRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  aiMetaChip: {
+    flex: 1,
+    backgroundColor: 'rgba(30,41,59,0.72)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+  },
+  aiMetaLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  aiMetaValue: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '700',
   },
   aiReasonBlock: {
-    marginTop: 14,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15,23,42,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
   },
   aiReasonLabel: {
     color: '#9CA3AF',
     fontSize: 11,
-    marginBottom: 4,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   aiReasonText: {
     color: '#F9FAFB',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
   },
   aiRiskRow: {
-    marginTop: 14,
+    marginTop: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1372,10 +1465,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   aiRiskBarTrack: {
-    marginTop: 6,
-    height: 6,
+    marginTop: 8,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: 'rgba(31,41,55,1)',
+    backgroundColor: 'rgba(30,41,59,0.9)',
     overflow: 'hidden',
   },
   aiRiskBarFill: {
@@ -1383,8 +1476,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   aiThreatTypeText: {
-    marginTop: 10,
+    marginTop: 12,
     color: '#9CA3AF',
     fontSize: 11,
+    lineHeight: 16,
   },
 });

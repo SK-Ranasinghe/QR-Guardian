@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 
-export type AiVerdict = 'SAFE' | 'SUSPICIOUS' | 'DANGEROUS';
-export type AiThreatType = 'Phishing' | 'Malware' | 'Social Engineering' | 'Safe';
+export type AiVerdict = 'SAFE' | 'SUSPICIOUS' | 'DANGEROUS' | 'NEUTRAL';
+export type AiThreatType = 'Phishing' | 'Malware' | 'Social Engineering' | 'Safe' | 'Neutral';
 
 export interface GeminiAiInsight {
   verdict: AiVerdict;
@@ -23,16 +23,24 @@ TLD Mismatch: Does a major bank/service use a suspicious extension (like .xyz, .
 Semantics: Does the URL contain urgency keywords ('verify', 'suspend', 'login')?
 Output Format: Return ONLY a raw JSON object (no markdown) with this structure: { 'verdict': 'SAFE' | 'SUSPICIOUS' | 'DANGEROUS', 'riskScore': number (0-100), 'reason': 'A short, sharp sentence explaining exactly why (e.g. Netflix domain using .xyz extension).', 'threatType': 'Phishing' | 'Malware' | 'Social Engineering' | 'Safe' }`;
 
+const createNeutralInsight = (rawText: string, reason: string): GeminiAiInsight => ({
+  verdict: 'NEUTRAL',
+  riskScore: 50,
+  reason,
+  threatType: 'Neutral',
+  rawText,
+});
+
 export const runGeminiAnalysis = async (scannedData: string): Promise<GeminiAiInsight | null> => {
-  console.log('🧠 [GeminiAI] Starting AI analysis for:', scannedData);
-
-  if (!GEMINI_API_KEY) {
-    console.log('⚠️ [GeminiAI] API key is not configured in app.config.js');
-    return null;
-  }
-
   try {
-    console.log('🧠 [GeminiAI] Using Gemini model:', GEMINI_MODEL_ID);
+    if (!GEMINI_API_KEY) {
+      console.log('⚠️ [GeminiAI] API key is not configured in app.config.js');
+      return null;
+    }
+
+    console.log('🧠 [GeminiAI] Starting AI analysis for:', scannedData);
+    console.log('� [GeminiAI] Using Gemini model:', GEMINI_MODEL_ID);
+
     const prompt =
       SYSTEM_PROMPT_TEMPLATE(scannedData) +
       '\n\nAnalyze this and respond strictly with ONLY the JSON object described.';
@@ -72,31 +80,51 @@ export const runGeminiAnalysis = async (scannedData: string): Promise<GeminiAiIn
       return null;
     }
 
-    console.log('🧠 [GeminiAI] Raw model text:', text);
+    console.log('📨 [GeminiAI] Raw model text:', text);
 
-    // Try to extract a JSON object from the text
-    const firstBrace = text.indexOf('{');
-    const lastBrace = text.lastIndexOf('}');
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const extractedJson = jsonMatch?.[0];
 
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    if (!extractedJson) {
       console.log('⚠️ [GeminiAI] Could not find JSON object in response');
-      return null;
+      return createNeutralInsight(
+        text,
+        'AI response did not contain a valid JSON block. Showing a neutral fallback result.'
+      );
     }
 
-    const jsonSlice = text.slice(firstBrace, lastBrace + 1);
+    console.log('🧩 [GeminiAI] Extracted JSON block:', extractedJson);
 
     let parsed: any;
     try {
-      parsed = JSON.parse(jsonSlice.replace(/'/g, '"'));
+      parsed = JSON.parse(extractedJson);
     } catch (err) {
       console.log('⚠️ [GeminiAI] JSON parse error', err);
-      return null;
+      return createNeutralInsight(
+        text,
+        'AI response could not be parsed reliably. Showing a neutral fallback result.'
+      );
     }
 
-    const verdict = (parsed.verdict as AiVerdict) ?? 'SAFE';
+    const verdictValue = typeof parsed.verdict === 'string' ? parsed.verdict.toUpperCase() : 'NEUTRAL';
+    const verdict: AiVerdict =
+      verdictValue === 'SAFE' ||
+      verdictValue === 'SUSPICIOUS' ||
+      verdictValue === 'DANGEROUS' ||
+      verdictValue === 'NEUTRAL'
+        ? (verdictValue as AiVerdict)
+        : 'NEUTRAL';
     const riskScore = typeof parsed.riskScore === 'number' ? parsed.riskScore : 0;
     const reason = typeof parsed.reason === 'string' ? parsed.reason : 'No reason provided.';
-    const threatType = (parsed.threatType as AiThreatType) ?? 'Safe';
+    const threatTypeValue = typeof parsed.threatType === 'string' ? parsed.threatType : 'Neutral';
+    const threatType: AiThreatType =
+      threatTypeValue === 'Phishing' ||
+      threatTypeValue === 'Malware' ||
+      threatTypeValue === 'Social Engineering' ||
+      threatTypeValue === 'Safe' ||
+      threatTypeValue === 'Neutral'
+        ? (threatTypeValue as AiThreatType)
+        : 'Neutral';
 
     const insight: GeminiAiInsight = {
       verdict,
