@@ -12,8 +12,8 @@ export interface GeminiAiInsight {
 }
 
 const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey as string | undefined;
-// Use the specific model ID configured in your Google AI project.
-const GEMINI_MODEL_ID = 'gemini-2.0-flash';
+const GEMINI_MODEL_ID =
+  (Constants.expoConfig?.extra?.geminiModel as string | undefined) || 'gemini-2.0-flash';
 
 const SYSTEM_PROMPT_TEMPLATE = (
   scannedData: string,

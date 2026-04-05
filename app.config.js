@@ -1,7 +1,11 @@
 // app.config.js
 // Single source of truth for Expo SDK 55. Loads .env and merges static
 // options that used to live in app.json.
-require('dotenv').config();
+const path = require('path');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, 'API.env') });
 
 export default {
   name: 'QRGuardian',
