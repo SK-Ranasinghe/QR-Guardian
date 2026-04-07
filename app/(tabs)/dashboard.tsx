@@ -1,5 +1,6 @@
 import { ScanHistoryItem, getScanHistory } from '@/utils/historyService';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -17,8 +18,6 @@ export default function DashboardScreen() {
     load();
   }, []);
 
-  const now = new Date();
-
   const {
     total,
     safeCount,
@@ -33,6 +32,7 @@ export default function DashboardScreen() {
     gradeLabel,
     subtitleLabel,
   } = useMemo(() => {
+    const now = new Date();
     const dayMs = 24 * 60 * 60 * 1000;
 
     let start = new Date();
@@ -156,7 +156,7 @@ export default function DashboardScreen() {
       gradeLabel: gradeLabelLocal,
       subtitleLabel: subtitleLocal,
     };
-  }, [history, now, range]);
+  }, [history, range]);
 
   const maxPerDay = Math.max(
     1,
@@ -165,7 +165,13 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <LinearGradient
+        colors={['#000000', '#020617', '#000000']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.title}>Dashboard</Text>
@@ -331,74 +337,93 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#000000',
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 24,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 28,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 24,
+    backgroundColor: 'rgba(9,12,28,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.14)',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   rangePillsRow: {
     flexDirection: 'row',
-    backgroundColor: '#111827',
+    backgroundColor: 'rgba(2,6,23,0.86)',
     padding: 4,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: 'rgba(56,189,248,0.14)',
   },
   rangePill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 999,
     marginHorizontal: 2,
     backgroundColor: 'transparent',
   },
   rangePillActive: {
-    backgroundColor: '#0F172A',
+    backgroundColor: 'rgba(14,165,233,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.18)',
   },
   rangePillLabel: {
-    color: '#6B7280',
+    color: '#94A3B8',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   rangePillLabelActive: {
-    color: '#E5E7EB',
+    color: '#E0F2FE',
   },
   title: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#8E8E93',
-    fontSize: 14,
-    marginTop: 2,
+    color: '#94A3B8',
+    fontSize: 13,
+    marginTop: 3,
   },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 80,
+    marginTop: 44,
     paddingHorizontal: 32,
+    paddingVertical: 42,
+    borderRadius: 24,
+    backgroundColor: 'rgba(9,12,28,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.12)',
   },
   emptyTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 14,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 21,
   },
   statsRow: {
     flexDirection: 'row',
@@ -406,105 +431,116 @@ const styles = StyleSheet.create({
   },
   statCardPrimary: {
     flex: 2,
-    backgroundColor: '#2C2C2E',
-    borderRadius: 16,
+    backgroundColor: 'rgba(9,12,28,0.9)',
+    borderRadius: 24,
     padding: 16,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(148,163,184,0.12)',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   statPrimaryHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   statColumnRight: {
     flex: 1,
     justifyContent: 'space-between',
   },
   statCardSmall: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(9,12,28,0.9)',
+    borderRadius: 22,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(148,163,184,0.12)',
   },
   statLabel: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
     marginBottom: 6,
   },
   statNumber: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: 'bold',
+    color: '#F8FAFC',
+    fontSize: 34,
+    fontWeight: '800',
   },
   statHint: {
-    color: '#A1A1AA',
+    color: '#CBD5E1',
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 6,
   },
   gradePill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    backgroundColor: '#020617',
+    backgroundColor: 'rgba(2,6,23,0.8)',
   },
   gradePillGrade: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     marginRight: 6,
   },
   gradePillLabel: {
-    color: '#9CA3AF',
+    color: '#CBD5E1',
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   statBadge: {
     fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: 0.6,
   },
   statNumberSmall: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: '#F8FAFC',
+    fontSize: 22,
+    fontWeight: '800',
   },
   detailRow: {
     flexDirection: 'row',
     marginBottom: 16,
+    gap: 10,
   },
   detailCard: {
     flex: 1,
-    backgroundColor: '#111827',
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginRight: 8,
+    backgroundColor: 'rgba(9,12,28,0.9)',
+    borderRadius: 22,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#1F2937',
+    borderColor: 'rgba(148,163,184,0.12)',
   },
   detailLabel: {
-    color: '#9CA3AF',
+    color: '#94A3B8',
     fontSize: 12,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   detailValue: {
-    color: '#F9FAFB',
-    fontSize: 22,
-    fontWeight: '700',
+    color: '#F8FAFC',
+    fontSize: 24,
+    fontWeight: '800',
   },
   chartCard: {
-    backgroundColor: '#020617',
-    borderRadius: 18,
+    backgroundColor: 'rgba(9,12,28,0.92)',
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: 'rgba(56,189,248,0.12)',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   chartHeaderRow: {
     flexDirection: 'row',
@@ -513,9 +549,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chartTitle: {
-    color: '#E5E7EB',
+    color: '#E2E8F0',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   legendRow: {
     flexDirection: 'row',
@@ -527,7 +563,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   legendLabel: {
-    color: '#9CA3AF',
+    color: '#94A3B8',
     fontSize: 11,
     marginLeft: 4,
   },
@@ -539,18 +575,19 @@ const styles = StyleSheet.create({
   },
   chartScrollContent: {
     paddingHorizontal: 4,
+    paddingRight: 12,
   },
   chartBarWrapper: {
     alignItems: 'center',
     flex: 0,
-    width: 28,
+    width: 30,
   },
   chartBarStack: {
     flexDirection: 'column',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    height: 90,
-    width: 16,
+    height: 94,
+    width: 18,
   },
   chartBar: {
     width: 10,
@@ -558,12 +595,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chartLabel: {
-    color: '#9CA3AF',
+    color: '#CBD5E1',
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 6,
   },
   chartSubLabel: {
-    color: '#6B7280',
+    color: '#64748B',
     fontSize: 10,
     marginTop: 2,
   },

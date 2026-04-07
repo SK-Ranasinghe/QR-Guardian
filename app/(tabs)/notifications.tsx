@@ -5,6 +5,7 @@ import {
     setNotificationsEnabled
 } from '@/utils/notificationService';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
@@ -107,8 +108,9 @@ export default function NotificationsScreen() {
           value={enabled}
           onValueChange={onToggle}
           disabled={disabled}
-          trackColor={{ false: '#3A3A3C', true: '#007AFF' }}
-          ios_backgroundColor="#3A3A3C"
+          trackColor={{ false: '#0F172A', true: '#0EA5E9' }}
+          thumbColor={enabled ? '#E0F2FE' : '#CBD5E1'}
+          ios_backgroundColor="#0F172A"
         />
       </View>
     </View>
@@ -116,7 +118,13 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <LinearGradient
+        colors={['#000000', '#020617', '#000000']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Notifications</Text>
           <Text style={styles.subtitle}>Stay updated on your security</Text>
@@ -132,8 +140,16 @@ export default function NotificationsScreen() {
             <TouchableOpacity 
               style={styles.permissionButton}
               onPress={requestPermission}
+              activeOpacity={0.9}
             >
-              <Text style={styles.permissionButtonText}>Enable Notifications</Text>
+              <LinearGradient
+                colors={['#0EA5E9', '#22D3EE', '#00FF41']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.permissionButtonGradient}
+              >
+                <Text style={styles.permissionButtonText}>Enable Notifications</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         )}
@@ -192,9 +208,16 @@ export default function NotificationsScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.testButton} onPress={handleSendTestNotification}>
-              <Ionicons name="send" size={20} color="#FFFFFF" />
-              <Text style={styles.testButtonText}>Send Test Notification</Text>
+            <TouchableOpacity style={styles.testButton} onPress={handleSendTestNotification} activeOpacity={0.9}>
+              <LinearGradient
+                colors={['#0EA5E9', '#22D3EE', '#00FF41']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.testButtonGradient}
+              >
+                <Ionicons name="send" size={20} color="#03120B" />
+                <Text style={styles.testButtonText}>Send Test Notification</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </>
         )}
@@ -206,80 +229,100 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#000000',
   },
   scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
     paddingBottom: 30,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 14,
+    borderRadius: 24,
+    backgroundColor: 'rgba(9,12,28,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.14)',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   title: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#8E8E93',
-    fontSize: 14,
-    marginTop: 2,
+    color: '#94A3B8',
+    fontSize: 13,
+    marginTop: 3,
   },
   permissionCard: {
-    backgroundColor: '#2C2C2E',
-    marginHorizontal: 20,
+    backgroundColor: 'rgba(9,12,28,0.9)',
     marginVertical: 10,
-    padding: 16,
-    borderRadius: 14,
+    padding: 18,
+    borderRadius: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(255,215,0,0.16)',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
   },
   permissionTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginTop: 8,
     marginBottom: 6,
   },
   permissionText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 14,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
     marginBottom: 12,
   },
   permissionButton: {
-    backgroundColor: '#007AFF',
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  permissionButtonGradient: {
     paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   permissionButtonText: {
-    color: '#FFFFFF',
+    color: '#03120B',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   section: {
-    marginTop: 10,
+    marginTop: 8,
   },
   sectionTitle: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    marginLeft: 20,
-    marginBottom: 6,
+    marginLeft: 4,
+    marginBottom: 8,
+    letterSpacing: 0.8,
   },
   optionCard: {
-    backgroundColor: '#2C2C2E',
-    marginHorizontal: 20,
+    backgroundColor: 'rgba(9,12,28,0.9)',
     marginBottom: 10,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(148,163,184,0.12)',
   },
   optionHeader: {
     flexDirection: 'row',
@@ -290,55 +333,60 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   optionTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   optionDescription: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
+    lineHeight: 18,
   },
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: '#2C2C2E',
-    marginHorizontal: 20,
+    backgroundColor: 'rgba(9,12,28,0.92)',
     marginTop: 20,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 24,
     alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(56,189,248,0.12)',
   },
   infoContent: {
     flex: 1,
     marginLeft: 12,
   },
   infoTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
   },
   infoText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 18,
   },
   testButton: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#22D3EE',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  testButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#34C759',
-    marginHorizontal: 20,
-    marginTop: 20,
     padding: 16,
-    borderRadius: 14,
   },
   testButtonText: {
-    color: '#FFFFFF',
+    color: '#03120B',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
     marginLeft: 8,
   },
 });

@@ -1,5 +1,6 @@
 import { clearFavorites, FavoriteItem, getFavorites, removeFromFavorites } from '@/utils/favoritesService';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -96,10 +97,16 @@ export default function FavoritesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <LinearGradient
+        colors={['#000000', '#020617', '#000000']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Trusted Sites</Text>
-          <Text style={styles.subtitle}>Sites you've marked as safe</Text>
+          <Text style={styles.subtitle}>Sites you&apos;ve marked as safe</Text>
         </View>
         {favorites.length > 0 && (
           <TouchableOpacity onPress={handleClearAll} style={styles.clearButton}>
@@ -114,7 +121,7 @@ export default function FavoritesScreen() {
           <Ionicons name="star-outline" size={80} color="#8E8E93" />
           <Text style={styles.emptyTitle}>No Trusted Sites Yet</Text>
           <Text style={styles.emptyText}>
-            When you scan a safe QR code, tap "Trust This Site" to add it here
+            When you scan a safe QR code, tap &quot;Trust This Site&quot; to add it here
           </Text>
         </View>
       ) : (
@@ -124,6 +131,7 @@ export default function FavoritesScreen() {
           keyExtractor={(item) => item.id}
           refreshing={refreshing}
           onRefresh={loadFavorites}
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
         />
       )}
@@ -133,8 +141,9 @@ export default function FavoritesScreen() {
         <View style={styles.infoContent}>
           <Text style={styles.infoTitle}>How Trusted Sites Work</Text>
           <Text style={styles.infoText}>
-            Trusted sites won't show security warnings when scanned. 
-            The app remembers domains you've marked as safe.
+            Trusted sites won&apos;t show security warnings when scanned.
+            {' '}
+            The app remembers domains you&apos;ve marked as safe.
           </Text>
         </View>
       </View>
@@ -145,35 +154,51 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginHorizontal: 18,
+    marginTop: 18,
+    marginBottom: 14,
+    borderRadius: 24,
+    backgroundColor: 'rgba(9,12,28,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.14)',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   title: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#8E8E93',
-    fontSize: 14,
-    marginTop: 2,
+    color: '#94A3B8',
+    fontSize: 13,
+    marginTop: 3,
   },
   clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(127,29,29,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.18)',
   },
   clearText: {
-    color: '#FF3B30',
+    color: '#F87171',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: 4,
   },
   emptyState: {
@@ -181,37 +206,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
+    marginHorizontal: 18,
+    marginTop: 40,
+    paddingVertical: 44,
+    borderRadius: 24,
+    backgroundColor: 'rgba(9,12,28,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.12)',
   },
   emptyTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 16,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingBottom: 20,
   },
   favoriteCard: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 14,
+    backgroundColor: 'rgba(9,12,28,0.9)',
+    borderRadius: 24,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(0,255,65,0.12)',
+    shadowColor: '#00FF41',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   favoriteHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   domainContainer: {
     flexDirection: 'row',
@@ -220,19 +257,26 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   domainText: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: 8,
     flex: 1,
   },
   removeButton: {
-    padding: 4,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(127,29,29,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.18)',
   },
   urlText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
-    marginBottom: 8,
+    marginBottom: 10,
     fontFamily: 'monospace',
   },
   favoriteFooter: {
@@ -241,43 +285,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dateText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
   },
   ratingBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   ratingText: {
-    color: '#FFFFFF',
+    color: '#03120B',
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: '#2C2C2E',
-    marginHorizontal: 16,
+    backgroundColor: 'rgba(9,12,28,0.92)',
+    marginHorizontal: 18,
     marginBottom: 20,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 24,
     alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(56,189,248,0.12)',
   },
   infoContent: {
     flex: 1,
     marginLeft: 12,
   },
   infoTitle: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
   },
   infoText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 14,
-    lineHeight: 18,
+    lineHeight: 20,
   },
 });
