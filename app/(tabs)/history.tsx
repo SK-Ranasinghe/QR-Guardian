@@ -1,7 +1,11 @@
-import { ScanHistoryItem, clearHistory, getScanHistory } from '@/utils/historyService';
+import { GlassCard } from '@/components/ui/premium-ui';
+import { ScanHistoryItem, clearHistory, deleteHistoryItem, getScanHistory } from '@/utils/historyService';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function HistoryScreen() {
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
@@ -20,10 +24,10 @@ export default function HistoryScreen() {
 
   const getRatingColor = (rating: string) => {
     switch (rating) {
-      case 'SAFE': return '#34C759';
-      case 'CAUTION': return '#FF9500';
-      case 'DANGEROUS': return '#FF3B30';
-      default: return '#8E8E93';
+      case 'SAFE': return '#00FF41';
+      case 'CAUTION': return '#FFD700';
+      case 'DANGEROUS': return '#FF0000';
+      default: return '#38BDF8';
     }
   };
 
@@ -47,45 +51,77 @@ export default function HistoryScreen() {
     return new Date(date).toLocaleDateString();
   };
 
-  const renderItem = ({ item }: { item: ScanHistoryItem }) => (
-    <View style={styles.historyCard}>
-      <View style={[styles.ratingBadge, { backgroundColor: getRatingColor(item.safetyRating) }]}>
-        <Ionicons name={getRatingIcon(item.safetyRating)} size={16} color="#FFFFFF" />
-        <Text style={styles.ratingText}>{item.safetyRating}</Text>
-      </View>
-      
-      <Text style={styles.urlText} numberOfLines={1}>{item.url}</Text>
-      
-      <View style={styles.historyDetails}>
-        <Text style={styles.scoreText}>Score: {item.score}/100</Text>
-        <Text style={styles.timeText}>
-          {formatDate(item.timestamp)} • {formatTime(item.timestamp)}
-        </Text>
-      </View>
+  const renderItem = ({ item, index }: { item: ScanHistoryItem; index: number }) => (
+    <Animated.View entering={FadeInDown.delay(index * 60).duration(320)}>
+      <GlassCard style={styles.historyCardShell} glowColor={`${getRatingColor(item.safetyRating)}33`} contentStyle={styles.historyCard}>
+        <LinearGradient
+          colors={[
+            `${getRatingColor(item.safetyRating)}1F`,
+            'rgba(255,255,255,0.03)',
+            'rgba(2,6,23,0.12)',
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.historyCardTopRow}>
+          <View style={[styles.ratingBadge, { backgroundColor: getRatingColor(item.safetyRating) }]}>
+            <Ionicons name={getRatingIcon(item.safetyRating)} size={16} color="#03120B" />
+            <Text style={styles.ratingText}>{item.safetyRating}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              await deleteHistoryItem(item.id);
+              await loadHistory();
+            }}
+            style={styles.itemDeleteButton}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="trash-outline" size={15} color="#F87171" />
+          </TouchableOpacity>
+        </View>
+        
+        <Text style={styles.urlText} numberOfLines={1}>{item.url}</Text>
+        
+        <View style={styles.historyDetails}>
+          <Text style={styles.scoreText}>Score: {item.score}/100</Text>
+          <Text style={styles.timeText}>
+            {formatDate(item.timestamp)} • {formatTime(item.timestamp)}
+          </Text>
+        </View>
 
-      {item.issues.length > 0 && (
-        <Text style={styles.issuesText} numberOfLines={1}>
-          Issues: {item.issues.slice(0, 2).join(', ')}
-          {item.issues.length > 2 ? `... (+${item.issues.length - 2})` : ''}
-        </Text>
-      )}
-    </View>
+        {item.issues.length > 0 && (
+          <Text style={styles.issuesText} numberOfLines={1}>
+            Issues: {item.issues.slice(0, 2).join(', ')}
+            {item.issues.length > 2 ? `... (+${item.issues.length - 2})` : ''}
+          </Text>
+        )}
+      </GlassCard>
+    </Animated.View>
   );
 
   const handleClearHistory = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await clearHistory();
     loadHistory();
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <LinearGradient
+        colors={['#000000', '#020617', '#000000']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Scan History</Text>
           <Text style={styles.subtitle}>Review all QR safety checks you&apos;ve done</Text>
         </View>
         {history.length > 0 && (
-          <TouchableOpacity onPress={handleClearHistory} style={styles.clearButton}>
+          <TouchableOpacity onPress={handleClearHistory} style={styles.clearButton} activeOpacity={0.9}>
             <Ionicons name="trash-outline" size={20} color="#FF3B30" />
             <Text style={styles.clearText}>Clear All</Text>
           </TouchableOpacity>
@@ -111,7 +147,7 @@ export default function HistoryScreen() {
         />
       )}
 
-      <View style={styles.statsBar}>
+      <GlassCard style={styles.statsBarShell} glowColor="rgba(56,189,248,0.14)" contentStyle={styles.statsBar}>
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{history.length}</Text>
           <Text style={styles.statLabel}>Total Scans</Text>
@@ -134,7 +170,7 @@ export default function HistoryScreen() {
           </Text>
           <Text style={styles.statLabel}>Risky</Text>
         </View>
-      </View>
+      </GlassCard>
     </SafeAreaView>
   );
 }
@@ -142,7 +178,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
@@ -155,22 +191,27 @@ const styles = StyleSheet.create({
   title: {
     color: '#FFFFFF',
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 14,
     marginTop: 2,
   },
   clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(127,29,29,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.18)',
   },
   clearText: {
     color: '#FF3B30',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: 4,
   },
   emptyState: {
@@ -182,12 +223,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 22,
@@ -196,13 +237,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
-  historyCard: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 14,
-    padding: 16,
+  historyCardShell: {
     marginBottom: 12,
+  },
+  historyCard: {
+    backgroundColor: 'rgba(5,10,20,0.84)',
+    borderRadius: 22,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
+    borderColor: 'rgba(148,163,184,0.12)',
+  },
+  historyCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   ratingBadge: {
     flexDirection: 'row',
@@ -211,16 +260,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
-    marginBottom: 8,
+  },
+  itemDeleteButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(127,29,29,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.18)',
   },
   ratingText: {
-    color: '#FFFFFF',
+    color: '#03120B',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
     marginLeft: 4,
   },
   urlText: {
-    color: '#FFFFFF',
+    color: '#E2E8F0',
     fontSize: 14,
     marginBottom: 8,
   },
@@ -231,24 +289,26 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   scoreText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
   },
   timeText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
   },
   issuesText: {
-    color: '#FF9500',
+    color: '#FBBF24',
     fontSize: 12,
     fontStyle: 'italic',
   },
-  statsBar: {
-    flexDirection: 'row',
-    backgroundColor: '#2C2C2E',
+  statsBarShell: {
     marginHorizontal: 16,
     marginBottom: 20,
-    borderRadius: 14,
+  },
+  statsBar: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(5,10,20,0.82)',
+    borderRadius: 20,
     paddingVertical: 16,
   },
   statItem: {
@@ -258,15 +318,15 @@ const styles = StyleSheet.create({
   statNumber: {
     color: '#FFFFFF',
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginBottom: 4,
   },
   statLabel: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
   },
   statDivider: {
     width: 1,
-    backgroundColor: '#3A3A3C',
+    backgroundColor: 'rgba(148,163,184,0.14)',
   },
 });

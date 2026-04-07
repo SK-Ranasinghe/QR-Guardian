@@ -51,6 +51,111 @@ const calculateEntropy = (value: string): number => {
   return entropy;
 };
 
+const getLongestConsonantRun = (value: string): number => {
+  let longest = 0;
+  let current = 0;
+
+  for (const ch of value.toLowerCase()) {
+    if (/[bcdfghjklmnpqrstvwxyz]/.test(ch)) {
+      current += 1;
+      if (current > longest) {
+        longest = current;
+      }
+    } else {
+      current = 0;
+    }
+  }
+
+  return longest;
+};
+
+const analyzeDomainRandomness = (domain: string) => {
+  const labels = domain
+    .split('.')
+    .map((label) => label.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+    .filter(Boolean);
+
+  const sample = [...labels]
+    .map((label) => label.replace(/-/g, ''))
+    .filter((label) => /[a-z0-9]/.test(label))
+    .sort((a, b) => b.length - a.length)[0] ?? domain.replace(/[^a-z0-9]/g, '');
+
+  const entropy = calculateEntropy(sample);
+  const lettersOnly = sample.replace(/[^a-z]/g, '');
+  const vowels = (lettersOnly.match(/[aeiou]/g) || []).length;
+  const vowelRatio = lettersOnly.length ? vowels / lettersOnly.length : 0;
+  const uniqueCharRatio = sample.length ? new Set(sample).size / sample.length : 0;
+  const digitRatio = sample.length ? (sample.match(/\d/g) || []).length / sample.length : 0;
+  const longestConsonantRun = getLongestConsonantRun(lettersOnly);
+
+  let suspicionScore = 0;
+  const signals: string[] = [];
+
+  if (entropy >= 3.85) {
+    suspicionScore += 4;
+    signals.push('very high entropy');
+  } else if (entropy >= 3.45 && sample.length >= 10) {
+    suspicionScore += 2;
+    signals.push('elevated entropy');
+  } else if (entropy >= 3.05 && sample.length >= 18) {
+    suspicionScore += 1;
+    signals.push('moderate entropy on a very long label');
+  }
+
+  if (lettersOnly.length >= 12 && vowelRatio <= 0.18) {
+    suspicionScore += 3;
+    signals.push('extremely low vowel ratio');
+  } else if (lettersOnly.length >= 14 && vowelRatio <= 0.25 && longestConsonantRun >= 5) {
+    suspicionScore += 2;
+    signals.push('consonant-heavy pattern');
+  }
+
+  if (longestConsonantRun >= 7) {
+    suspicionScore += 4;
+    signals.push('very long consonant run');
+  } else if (longestConsonantRun >= 5 && entropy >= 3.1) {
+    suspicionScore += 2;
+    signals.push('long consonant run');
+  }
+
+  if (sample.length >= 14 && uniqueCharRatio >= 0.55) {
+    suspicionScore += 1;
+    signals.push('high character variation');
+  }
+
+  if (sample.length >= 10 && digitRatio >= 0.2) {
+    suspicionScore += 2;
+    signals.push('digit-heavy label');
+  }
+
+  let level: 'LOW' | 'MEDIUM' | 'HIGH' | null = null;
+  let penalty = 0;
+
+  if (suspicionScore >= 7) {
+    level = 'HIGH';
+    penalty = 30;
+  } else if (suspicionScore >= 4) {
+    level = 'MEDIUM';
+    penalty = 20;
+  } else if (suspicionScore >= 2) {
+    level = 'LOW';
+    penalty = 10;
+  }
+
+  return {
+    sample,
+    entropy,
+    vowelRatio,
+    uniqueCharRatio,
+    digitRatio,
+    longestConsonantRun,
+    suspicionScore,
+    level,
+    penalty,
+    signals,
+  };
+};
+
 // Read API key from config
 const API_KEY = Constants.expoConfig?.extra?.googleSafeBrowsingApiKey;
 
@@ -331,48 +436,43 @@ export const analyzeUrl = async (url: string): Promise<SafetyResult> => {
 
   const domain = extractDomain(url).toLowerCase();
 
-  // DGA / high-entropy detector (Shannon entropy)
-  const entropySample = domain.replace(/[^a-z0-9]/g, '');
-  if (entropySample.length >= 6) {
-    const entropy = calculateEntropy(entropySample);
-    console.log('📈 Entropy analysis:', { domain, entropySample, entropy });
+  const domainRandomness = analyzeDomainRandomness(domain);
+  if (domainRandomness.sample.length >= 6) {
+    console.log('📈 Domain randomness analysis:', {
+      domain,
+      sample: domainRandomness.sample,
+      entropy: domainRandomness.entropy,
+      vowelRatio: domainRandomness.vowelRatio,
+      uniqueCharRatio: domainRandomness.uniqueCharRatio,
+      digitRatio: domainRandomness.digitRatio,
+      longestConsonantRun: domainRandomness.longestConsonantRun,
+      suspicionScore: domainRandomness.suspicionScore,
+      signals: domainRandomness.signals,
+    });
 
-    // Entropy levels:
-    // - LOW:    3.2 – 3.6  (slightly random)
-    // - MEDIUM: 3.6 – 3.8  (suspicious)
-    // - HIGH:   >= 3.8     (very random / DGA-like)
-
-    let entropyLevel: 'LOW' | 'MEDIUM' | 'HIGH' | null = null;
-    let entropyPenalty = 0;
-
-    if (entropy >= 3.8) {
-      entropyLevel = 'HIGH';
-      entropyPenalty = 20;
-    } else if (entropy >= 3.6) {
-      entropyLevel = 'MEDIUM';
-      entropyPenalty = 10;
-    } else if (entropy >= 3.2) {
-      entropyLevel = 'LOW';
-      entropyPenalty = 5;
-    }
-
-    if (entropyLevel) {
+    if (domainRandomness.level) {
       const before = score;
       const levelLabel =
-        entropyLevel === 'HIGH' ? 'High' : entropyLevel === 'MEDIUM' ? 'Medium' : 'Low';
+        domainRandomness.level === 'HIGH'
+          ? 'High'
+          : domainRandomness.level === 'MEDIUM'
+          ? 'Medium'
+          : 'Low';
+      const signalSummary = domainRandomness.signals.slice(0, 2).join(', ');
       issues.push(
-        `⚠️ Entropy (${levelLabel}): Domain appears random or bot-generated (possible DGA).`,
+        `⚠️ Domain Randomness (${levelLabel}): Host looks machine-generated (${signalSummary}).`,
       );
-      score -= entropyPenalty;
-      console.log('🤖 Entropy-based domain risk detected', {
+      score -= domainRandomness.penalty;
+      console.log('🤖 Domain randomness risk detected', {
         domain,
-        entropy,
-        entropyLevel,
-        entropyPenalty,
+        entropy: domainRandomness.entropy,
+        level: domainRandomness.level,
+        penalty: domainRandomness.penalty,
+        signals: domainRandomness.signals,
         scoreBefore: before,
         scoreAfter: score,
       });
-      if (entropyLevel !== 'LOW' && minRating === 'SAFE') {
+      if (domainRandomness.level !== 'LOW' && minRating === 'SAFE') {
         minRating = 'CAUTION';
       }
     }

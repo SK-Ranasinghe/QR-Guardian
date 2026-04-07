@@ -1,18 +1,28 @@
+import { GlassCard, ShimmerBlock } from '@/components/ui/premium-ui';
 import { saveScanToHistory } from '@/utils/historyService';
 import { initializeNotifications } from '@/utils/notificationService';
 import { analyzeUrl } from '@/utils/safetycheck';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, {
+  Easing,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
-const { width } = Dimensions.get('window'); 
-
-useEffect(() => {
-  initializeNotifications(); 
-}, []);
+const { width, height } = Dimensions.get('window'); 
+const SCAN_FRAME_SIZE = width * 0.72;
+const LASER_TRAVEL = SCAN_FRAME_SIZE - 18;
+const CAMERA_CARD_HEIGHT = Math.max(420, Math.min(height * 0.66, 620));
 
 export default function TabOneScreen() {
   const router = useRouter();
@@ -20,6 +30,53 @@ export default function TabOneScreen() {
   const [isScanning, setIsScanning] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
+  const laserProgress = useSharedValue(0);
+  const scannerPulse = useSharedValue(0.35);
+
+  useEffect(() => {
+    initializeNotifications(); 
+  }, []);
+
+  useEffect(() => {
+    if (isScanning && !isAnalyzing) {
+      laserProgress.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false,
+      );
+
+      scannerPulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.35, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false,
+      );
+      return;
+    }
+
+    laserProgress.value = withTiming(0, { duration: 300 });
+    scannerPulse.value = withTiming(0.25, { duration: 300 });
+  }, [isAnalyzing, isScanning, laserProgress, scannerPulse]);
+
+  const laserStyle = useAnimatedStyle(() => ({
+    opacity: isScanning && !isAnalyzing ? 0.95 : 0,
+    transform: [{ translateY: laserProgress.value * LASER_TRAVEL }],
+  }));
+
+  const scanFrameStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      scannerPulse.value,
+      [0.35, 1],
+      ['rgba(56,189,248,0.45)', 'rgba(0,255,65,0.95)'],
+    ),
+    shadowOpacity: 0.25 + scannerPulse.value * 0.45,
+    shadowRadius: 12 + scannerPulse.value * 18,
+  }));
 
   if (!permission) {
     return <View />;
@@ -28,14 +85,31 @@ export default function TabOneScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.permissionContainer}>
-        <Ionicons name="camera-outline" size={80} color="#007AFF" />
-        <Text style={styles.permissionTitle}>Camera Access</Text>
-        <Text style={styles.permissionText}>
-          QR Guardian needs camera access to scan QR codes and protect you from malicious links.
-        </Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.permissionButton}>
-          <Text style={styles.permissionButtonText}>Grant Camera Access</Text>
-        </TouchableOpacity>
+        <LinearGradient
+          colors={['#000000', '#020617', '#000000']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <GlassCard style={styles.permissionCard} glowColor="rgba(56,189,248,0.26)">
+          <View style={styles.permissionIconWrap}>
+            <Ionicons name="camera-outline" size={64} color="#38BDF8" />
+          </View>
+          <Text style={styles.permissionTitle}>Camera Access</Text>
+          <Text style={styles.permissionText}>
+            QR Guardian needs camera access to scan QR codes and intercept unsafe links before they open.
+          </Text>
+          <TouchableOpacity onPress={requestPermission} style={styles.permissionButton} activeOpacity={0.9}>
+            <LinearGradient
+              colors={['#0EA5E9', '#22D3EE', '#00FF41']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.permissionButtonGradient}
+            >
+              <Text style={styles.permissionButtonText}>Grant Camera Access</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </GlassCard>
       </View>
     );
   }
@@ -47,6 +121,14 @@ export default function TabOneScreen() {
     setIsAnalyzing(true);
     
     const result = await analyzeUrl(data);
+
+    if (result.rating === 'SAFE') {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (result.rating === 'DANGEROUS') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } else {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
 
     await saveScanToHistory({ 
       url: data,
@@ -77,28 +159,35 @@ export default function TabOneScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Ionicons name="qr-code" size={28} color="#FFFFFF" />
-        <View style={styles.headerTextGroup}>
-          <Text style={styles.title}>QR Guardian</Text>
-          <Text style={styles.subtitle}>Real-time QR safety scanner</Text>
-        </View>
-        <View style={styles.headerIcon} />
-      </View>
-
-      <View style={styles.statusRow}>
-        <View style={styles.statusDot} />
-        <Text style={styles.statusText}>Live protection is active</Text>
-      </View>
-
-      {/* Camera View */}
       <LinearGradient
-        colors={["#2F80ED", "#1C1C1E"]}
+        colors={['#000000', '#020617', '#000000']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.cameraGradient}
-      >
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      <GlassCard style={styles.headerCard} glowColor="rgba(0,255,65,0.14)">
+        <View style={styles.header}>
+          <View style={styles.headerBrandWrap}>
+            <LinearGradient
+              colors={['rgba(14,165,233,0.28)', 'rgba(0,255,65,0.18)']}
+              style={styles.headerIconBubble}
+            >
+              <Ionicons name="qr-code" size={24} color="#E2F3FF" />
+            </LinearGradient>
+            <View style={styles.headerTextGroup}>
+              <Text style={styles.title}>QR Guardian</Text>
+              <Text style={styles.subtitle}>Premium cyber-security interception</Text>
+            </View>
+          </View>
+          <View style={styles.statusPill}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Live protection active</Text>
+          </View>
+        </View>
+      </GlassCard>
+
+      <GlassCard style={styles.cameraGradient} glowColor="rgba(56,189,248,0.18)" contentStyle={styles.cameraGlassInner} fill>
         <View style={styles.cameraContainer}>
           <CameraView 
             style={styles.camera}
@@ -108,23 +197,43 @@ export default function TabOneScreen() {
             enableTorch={isTorchOn}
             onBarcodeScanned={isScanning ? handleBarcodeScanned : undefined}
           />
+
+          <LinearGradient
+            colors={['rgba(2,6,23,0.12)', 'rgba(2,6,23,0.62)', 'rgba(0,0,0,0.88)']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.cameraOverlay}
+          />
           
-          {/* Scanning Frame Overlay */}
-          <View style={styles.scanFrame}>
+          <Animated.View style={[styles.scanFrame, scanFrameStyle]}>
+            <LinearGradient
+              colors={['rgba(56,189,248,0.08)', 'rgba(0,255,65,0.02)']}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <Animated.View style={[styles.laserLineWrap, laserStyle]}>
+              <LinearGradient
+                colors={['rgba(0,255,65,0)', 'rgba(0,255,65,0.85)', 'rgba(255,255,255,0.95)', 'rgba(0,255,65,0)']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={styles.laserLine}
+              />
+            </Animated.View>
             <View style={[styles.corner, styles.cornerTL]} />
             <View style={[styles.corner, styles.cornerTR]} />
             <View style={[styles.corner, styles.cornerBL]} />
             <View style={[styles.corner, styles.cornerBR]} />
-          </View>
+            <View style={styles.scanHintPill}>
+              <Text style={styles.scanHintText}>ACTIVE SCANNING</Text>
+            </View>
+          </Animated.View>
 
-          {/* Scanning Text */}
           {isScanning && (
             <View style={styles.scanningTextContainer}>
-              <Text style={styles.scanningText}>Align QR code within frame</Text>
+              <Text style={styles.scanningText}>Align the QR code inside the secure frame</Text>
+              <Text style={styles.scanningSubtext}>Execution is paused until QR Guardian completes its audit.</Text>
             </View>
           )}
 
-          {/* Flashlight Toggle */}
           <View style={styles.flashContainer}>
             <TouchableOpacity
               style={[styles.flashPill, isTorchOn && styles.flashPillActive]}
@@ -141,27 +250,54 @@ export default function TabOneScreen() {
                   <Ionicons
                     name={isTorchOn ? 'flash' : 'flash-off'}
                     size={18}
-                    color={isTorchOn ? '#000000' : '#FFD60A'}
+                    color={isTorchOn ? '#03120B' : '#FFD60A'}
                   />
                 </View>
+                <Text style={styles.flashLabel}>{isTorchOn ? 'Torch On' : 'Torch Off'}</Text>
               </View>
             </TouchableOpacity>
           </View>
         </View>
-      </LinearGradient>
+      </GlassCard>
 
-      {/* Results moved to dedicated /result screen */}
-
-      {/* Analyzing Overlay */}
       {isAnalyzing && (
         <View style={styles.analyzingOverlay}>
-          <View style={styles.analyzingCard}>
-            <Ionicons name="shield-outline" size={50} color="#007AFF" />
-            <Text style={styles.analyzingTitle}>Analyzing Safety</Text>
-            <Text style={styles.analyzingText}>Checking against security databases...</Text>
-          </View>
+          <GlassCard style={styles.analyzingCard} glowColor="rgba(56,189,248,0.24)">
+            <LinearGradient
+              colors={['rgba(14,165,233,0.18)', 'rgba(0,255,65,0.12)']}
+              style={styles.analyzingIconShell}
+            >
+              <Ionicons name="shield-outline" size={40} color="#9BE7FF" />
+            </LinearGradient>
+            <View style={styles.analyzingStatusPill}>
+              <View style={styles.analyzingStatusDot} />
+              <Text style={styles.analyzingStatusText}>SECURITY INTERCEPTION ACTIVE</Text>
+            </View>
+            <Text style={styles.analyzingTitle}>Analyzing QR Payload</Text>
+            <Text style={styles.analyzingText}>Holding execution while QR Guardian scores the destination and checks live threat signals.</Text>
+            <View style={styles.analyzingSkeletonGroup}>
+              <ShimmerBlock height={14} width="90%" />
+              <ShimmerBlock height={14} width="76%" style={styles.skeletonSpacing} />
+              <ShimmerBlock height={14} width="64%" style={styles.skeletonSpacing} />
+            </View>
+            <View style={styles.analyzingChipRow}>
+              <View style={styles.analyzingChip}>
+                <Ionicons name="scan-outline" size={13} color="#38BDF8" />
+                <Text style={styles.analyzingChipText}>Parsing QR</Text>
+              </View>
+              <View style={styles.analyzingChip}>
+                <Ionicons name="shield-checkmark-outline" size={13} color="#00FF41" />
+                <Text style={styles.analyzingChipText}>Risk scoring</Text>
+              </View>
+              <View style={styles.analyzingChip}>
+                <Ionicons name="globe-outline" size={13} color="#FFD700" />
+                <Text style={styles.analyzingChipText}>Intel checks</Text>
+              </View>
+            </View>
+          </GlassCard>
         </View>
       )}
+
     </View>
   );
 }
@@ -169,175 +305,272 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#000000',
+    paddingHorizontal: 16,
+    paddingTop: 52,
+    paddingBottom: 18,
+  },
+  headerCard: {
+    marginBottom: 16,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
+  headerBrandWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerIconBubble: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   headerTextGroup: {
     flexDirection: 'column',
+    flexShrink: 1,
   },
   title: {
     color: '#FFFFFF',
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   subtitle: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 3,
+    letterSpacing: 0.4,
   },
-  headerIcon: {
-    width: 28,
-  },
-  statusRow: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,12,27,0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,255,65,0.16)',
+    marginLeft: 12,
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#34C759',
+    backgroundColor: '#00FF41',
     marginRight: 8,
+    shadowColor: '#00FF41',
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
   },
   statusText: {
-    color: '#8E8E93',
-    fontSize: 12,
+    color: '#D1FAE5',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
   },
   permissionContainer: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 30,
   },
+  permissionCard: {
+    width: '100%',
+    maxWidth: 380,
+  },
+  permissionIconWrap: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(14,165,233,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.22)',
+    alignSelf: 'center',
+    marginTop: 28,
+    marginBottom: 18,
+  },
   permissionTitle: {
     color: '#FFFFFF',
     fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 20,
+    fontWeight: '800',
+    textAlign: 'center',
     marginBottom: 10,
   },
   permissionText: {
-    color: '#8E8E93',
-    fontSize: 16,
+    color: '#94A3B8',
+    fontSize: 15,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
     marginBottom: 30,
+    paddingHorizontal: 24,
   },
   permissionButton: {
-    backgroundColor: '#007AFF',
+    marginHorizontal: 24,
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  permissionButtonGradient: {
     paddingHorizontal: 30,
     paddingVertical: 15,
-    borderRadius: 12,
+    alignItems: 'center',
   },
   permissionButtonText: {
-    color: '#FFFFFF',
+    color: '#04120C',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   cameraGradient: {
-    flex: 1,
-    marginHorizontal: 20,
-    marginVertical: 16,
-    borderRadius: 24,
-    padding: 2,
+    height: CAMERA_CARD_HEIGHT,
+    marginBottom: 10,
+  },
+  cameraGlassInner: {
+    padding: 0,
   },
   cameraContainer: {
     flex: 1,
-    borderRadius: 22,
+    minHeight: 560,
+    borderRadius: 23,
     overflow: 'hidden',
     backgroundColor: '#000000',
   },
   camera: {
     flex: 1,
   },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   scanFrame: {
     position: 'absolute',
-    top: '25%',
-    left: '10%',
-    right: '10%',
-    bottom: '25%',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    borderRadius: 12,
+    top: '20%',
+    alignSelf: 'center',
+    width: SCAN_FRAME_SIZE,
+    height: SCAN_FRAME_SIZE,
+    borderWidth: 1.5,
+    borderRadius: 24,
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 0 },
+    backgroundColor: 'rgba(2,6,23,0.12)',
   },
   corner: {
     position: 'absolute',
-    width: 20,
-    height: 20,
-    borderColor: '#007AFF',
+    width: 28,
+    height: 28,
+    borderColor: '#7DD3FC',
   },
   cornerTL: {
-    top: -2,
-    left: -2,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 12,
+    top: -1,
+    left: -1,
+    borderTopWidth: 5,
+    borderLeftWidth: 5,
+    borderTopLeftRadius: 24,
   },
   cornerTR: {
-    top: -2,
-    right: -2,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 12,
+    top: -1,
+    right: -1,
+    borderTopWidth: 5,
+    borderRightWidth: 5,
+    borderTopRightRadius: 24,
   },
   cornerBL: {
-    bottom: -2,
-    left: -2,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 12,
+    bottom: -1,
+    left: -1,
+    borderBottomWidth: 5,
+    borderLeftWidth: 5,
+    borderBottomLeftRadius: 24,
   },
   cornerBR: {
-    bottom: -2,
-    right: -2,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 12,
+    bottom: -1,
+    right: -1,
+    borderBottomWidth: 5,
+    borderRightWidth: 5,
+    borderBottomRightRadius: 24,
+  },
+  laserLineWrap: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    top: 8,
+  },
+  laserLine: {
+    height: 4,
+    borderRadius: 999,
+    shadowColor: '#00FF41',
+    shadowOpacity: 0.95,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  scanHintPill: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,12,27,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.22)',
+  },
+  scanHintText: {
+    color: '#A5F3FC',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   scanningTextContainer: {
     position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
+    bottom: 74,
+    left: 24,
+    right: 24,
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   scanningText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '700',
     textAlign: 'center',
+  },
+  scanningSubtext: {
+    marginTop: 6,
+    color: '#94A3B8',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   flashContainer: {
     position: 'absolute',
     bottom: 20,
-    right: 20,
+    right: 18,
   },
   flashPill: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    shadowColor: '#000',
+    borderColor: 'rgba(148,163,184,0.22)',
+    backgroundColor: 'rgba(2,12,27,0.72)',
+    shadowColor: '#38BDF8',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
     elevation: 6,
   },
   flashPillActive: {
     borderColor: '#FFD60A',
-    backgroundColor: 'rgba(255,214,10,0.15)',
+    backgroundColor: 'rgba(255,214,10,0.16)',
   },
   flashPillInner: {
     flexDirection: 'row',
@@ -347,7 +580,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: 'rgba(255,214,10,0.16)',
+    backgroundColor: 'rgba(255,214,10,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -356,48 +589,102 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD60A',
   },
   flashLabel: {
-    color: '#FFFFFF',
+    color: '#E2E8F0',
     fontSize: 13,
-    fontWeight: '500',
-  },
-  scanAgainButton: {
-    backgroundColor: '#007AFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 12, // Added margin to separate from favorite button
-  },
-  scanAgainText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: '700',
   },
   analyzingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
   analyzingCard: {
-    backgroundColor: '#2C2C2E',
-    padding: 30,
-    borderRadius: 16,
+    width: '100%',
+    maxWidth: 360,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
     alignItems: 'center',
-    margin: 20,
+  },
+  analyzingIconShell: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  analyzingStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,12,27,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.18)',
+    marginBottom: 14,
+  },
+  analyzingStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#00FF41',
+    marginRight: 8,
+    shadowColor: '#00FF41',
+    shadowOpacity: 0.85,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  analyzingStatusText: {
+    color: '#A5F3FC',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   analyzingTitle: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 16,
+    fontWeight: '800',
     marginBottom: 8,
+    textAlign: 'center',
   },
   analyzingText: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 14,
     textAlign: 'center',
+    lineHeight: 20,
+  },
+  analyzingSkeletonGroup: {
+    width: '100%',
+    marginTop: 18,
+  },
+  analyzingChipRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 18,
+  },
+  analyzingChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15,23,42,0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.16)',
+    marginHorizontal: 4,
+  },
+  analyzingChipText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  skeletonSpacing: {
+    marginTop: 10,
   },
 });

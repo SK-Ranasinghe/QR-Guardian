@@ -1,12 +1,25 @@
+import { GlassCard, ShimmerBlock } from '@/components/ui/premium-ui';
 import { addToFavorites, isDomainFavorited, removeFromFavorites } from '@/utils/favoritesService';
 import { GeminiAiInsight, runGeminiAnalysis } from '@/utils/geminiAiService';
 import { fetchDomainIntel, Ip2LocationDomainInfo } from '@/utils/ip2LocationService';
 import { runVirusTotalScan, VirusTotalSummary } from '@/utils/virusTotalService';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, {
+    Easing,
+    FadeIn,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withRepeat,
+    withSequence,
+    withTiming,
+} from 'react-native-reanimated';
 
 const formatWhoisValue = (value: any): string => {
   if (value === null || value === undefined) return '-';
@@ -130,6 +143,53 @@ const getAiVerdictIcon = (value: GeminiAiInsight['verdict']) => {
   }
 };
 
+const getRatingPulseColor = (value: string) => {
+  switch (value) {
+    case 'SAFE':
+      return '#00FF41';
+    case 'CAUTION':
+      return '#FFD700';
+    case 'DANGEROUS':
+      return '#FF0000';
+    default:
+      return '#38BDF8';
+  }
+};
+
+const AnimatedIssueItem = ({ issue, index }: { issue: string; index: number }) => {
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(12);
+
+  useEffect(() => {
+    opacity.value = withDelay(index * 110, withTiming(1, { duration: 260 }));
+    translateY.value = withDelay(
+      index * 110,
+      withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) }),
+    );
+  }, [index, opacity, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.issueRow, animatedStyle]}>
+      <View style={styles.issueIconWrap}>
+        <Ionicons name="information-circle" size={14} color="#FFD700" />
+      </View>
+      <Text style={styles.issueText}>{issue}</Text>
+    </Animated.View>
+  );
+};
+
+const InlineLoader = () => (
+  <View style={styles.inlineLoaderWrap}>
+    <ShimmerBlock width={58} height={10} borderRadius={999} />
+    <ShimmerBlock width={38} height={10} borderRadius={999} style={styles.inlineLoaderSpacing} />
+  </View>
+);
+
 export default function ResultScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -152,6 +212,12 @@ export default function ResultScreen() {
   const [aiInsight, setAiInsight] = useState<GeminiAiInsight | null>(null);
   const [isDomainIntelLoading, setIsDomainIntelLoading] = useState(false);
   const [domainIntel, setDomainIntel] = useState<Ip2LocationDomainInfo | null>(null);
+  const screenTranslateY = useSharedValue(26);
+  const screenOpacity = useSharedValue(0);
+  const riskPulse = useSharedValue(0.45);
+  const aiTranslateY = useSharedValue(18);
+  const aiOpacity = useSharedValue(0);
+  const ratingPulseColor = getRatingPulseColor(rating);
 
   const vtPenalty = React.useMemo(() => {
     if (!virusTotalResult || !virusTotalResult.engines || virusTotalResult.engines.length === 0) {
@@ -192,6 +258,47 @@ export default function ResultScreen() {
     checkFavorite();
   }, [url]);
 
+  useEffect(() => {
+    screenTranslateY.value = withTiming(0, { duration: 480, easing: Easing.out(Easing.cubic) });
+    screenOpacity.value = withTiming(1, { duration: 420 });
+    riskPulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.45, { duration: 1600, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+  }, [riskPulse, screenOpacity, screenTranslateY]);
+
+  useEffect(() => {
+    if (!aiInsight) {
+      aiTranslateY.value = 18;
+      aiOpacity.value = 0;
+      return;
+    }
+
+    aiTranslateY.value = withTiming(0, { duration: 380, easing: Easing.out(Easing.cubic) });
+    aiOpacity.value = withTiming(1, { duration: 320 });
+  }, [aiInsight, aiOpacity, aiTranslateY]);
+
+  const screenAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: screenOpacity.value,
+    transform: [{ translateY: screenTranslateY.value }],
+  }));
+
+  const ratingPulseStyle = useAnimatedStyle(() => ({
+    shadowColor: ratingPulseColor,
+    shadowOpacity: 0.32 + riskPulse.value * 0.34,
+    shadowRadius: 18 + riskPulse.value * 20,
+    transform: [{ scale: 0.995 + riskPulse.value * 0.01 }],
+  }), [ratingPulseColor]);
+
+  const aiCardAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: aiOpacity.value,
+    transform: [{ translateY: aiTranslateY.value }],
+  }));
+
   const extractDomain = (value: string): string => {
     try {
       let cleanUrl = value.toLowerCase().trim();
@@ -214,13 +321,13 @@ export default function ResultScreen() {
   const getRatingColor = (value: string) => {
     switch (value) {
       case 'SAFE':
-        return '#34C759';
+        return '#00FF41';
       case 'CAUTION':
-        return '#FF9500';
+        return '#FFD700';
       case 'DANGEROUS':
-        return '#FF3B30';
+        return '#FF0000';
       default:
-        return '#8E8E93';
+        return '#38BDF8';
     }
   };
 
@@ -320,13 +427,15 @@ export default function ResultScreen() {
           : base;
         await Linking.openURL(link);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Unable to open', 'Your device could not handle this QR action.');
     }
   };
 
   const handleOpen = () => {
     if (!url) return;
+
+    void Haptics.selectionAsync();
 
     // If adjusted score is below 90, show custom premium confirmation modal
     if (adjustedScore < 90) {
@@ -348,6 +457,8 @@ export default function ResultScreen() {
 
   const handleDeepScan = async () => {
     if (!url) return;
+
+    await Haptics.selectionAsync();
 
     if (isDeepScanLoading) {
       Alert.alert(
@@ -371,7 +482,7 @@ export default function ResultScreen() {
       } else {
         setVirusTotalResult(result);
       }
-    } catch (error) {
+    } catch {
       Alert.alert(
         'Deep Scan error',
         'Something went wrong while running the deep scan. Please try again.'
@@ -383,6 +494,8 @@ export default function ResultScreen() {
 
   const handleAiAnalysis = async () => {
     if (!url) return;
+
+    await Haptics.selectionAsync();
 
     try {
       setIsAiLoading(true);
@@ -398,7 +511,7 @@ export default function ResultScreen() {
       } else {
         setAiInsight(insight);
       }
-    } catch (error) {
+    } catch {
       Alert.alert(
         'AI Analysis error',
         'Something went wrong while contacting the AI service.'
@@ -410,6 +523,8 @@ export default function ResultScreen() {
 
   const handleDomainIntel = async () => {
     if (!url) return;
+
+    await Haptics.selectionAsync();
 
     if (isDomainIntelLoading) {
       Alert.alert(
@@ -433,7 +548,7 @@ export default function ResultScreen() {
       } else {
         setDomainIntel(intel);
       }
-    } catch (error) {
+    } catch {
       Alert.alert(
         'Domain intelligence error',
         'Something went wrong while contacting the IP2LOCATION service.',
@@ -446,6 +561,12 @@ export default function ResultScreen() {
   if (!url) {
     return (
       <SafeAreaView style={styles.container}>
+        <LinearGradient
+          colors={['#000000', '#020617', '#000000']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
         <View style={styles.emptyState}>
           <Ionicons name="alert-circle" size={60} color="#FF3B30" />
           <Text style={styles.emptyTitle}>No Result Data</Text>
@@ -463,391 +584,431 @@ export default function ResultScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Ionicons name="shield" size={26} color="#FFFFFF" />
-            <View style={styles.headerTextGroup}>
-              <Text style={styles.title}>Scan Result</Text>
-              <Text style={styles.subtitle}>Security analysis for this QR link</Text>
+      <LinearGradient
+        colors={['#000000', '#020617', '#000000']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <Animated.View
+        style={[
+          styles.screenWrapper,
+          screenAnimatedStyle,
+        ]}
+      >
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <LinearGradient
+                colors={['rgba(56,189,248,0.22)', 'rgba(0,255,65,0.12)']}
+                style={styles.headerIconShell}
+              >
+                <Ionicons name="shield" size={22} color="#E0F2FE" />
+              </LinearGradient>
+              <View style={styles.headerTextGroup}>
+                <Text style={styles.title}>Scan Result</Text>
+                <Text style={styles.subtitle}>Premium cyber analysis for this QR payload</Text>
+              </View>
             </View>
+            <TouchableOpacity onPress={handleScanAgain} style={styles.headerAction} activeOpacity={0.9}>
+              <Ionicons name="scan-outline" size={18} color="#38BDF8" />
+              <Text style={styles.headerActionText}>Scan Again</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={handleScanAgain} style={styles.headerAction}>
-            <Ionicons name="scan-outline" size={18} color="#0A84FF" />
-            <Text style={styles.headerActionText}>Scan Again</Text>
-          </TouchableOpacity>
-        </View>
 
-        <View style={[styles.ratingCard, { borderColor: getRatingColor(rating) }]}>
-          <View style={[styles.ratingBadge, { backgroundColor: getRatingColor(rating) }]}>
-            <Ionicons name={getRatingIcon(rating)} size={22} color="#FFFFFF" />
-            <Text style={styles.ratingLabel}>{rating}</Text>
-          </View>
-          <Text style={styles.scoreValue}>{adjustedScore}</Text>
-          <Text style={styles.scoreSuffix}>/ 100 safety score</Text>
-          <Text style={styles.scoreHint}>
-            Higher scores indicate safer destinations based on multiple security checks.
-          </Text>
-        </View>
-
-        {issues.length > 0 && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Security notes</Text>
-              <Text style={styles.sectionCount}>{issues.length} issue{issues.length === 1 ? '' : 's'}</Text>
-            </View>
-            {issues.map((issue, index) => (
-              <View key={index} style={styles.issueRow}>
-                <Ionicons name="information-circle" size={16} color="#FF9500" />
-                <Text style={styles.issueText}>{issue}</Text>
+          <Animated.View
+            style={[
+              styles.ratingCardShell,
+              ratingPulseStyle,
+            ]}
+          >
+            <GlassCard glowColor={ratingPulseColor} contentStyle={[styles.ratingCard, { borderColor: getRatingColor(rating) }]}>
+              <LinearGradient
+                colors={[
+                  `${ratingPulseColor}26`,
+                  'rgba(255,255,255,0.04)',
+                  'rgba(2,6,23,0.18)',
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={[styles.ratingBadge, { backgroundColor: getRatingColor(rating) }]}>
+                <Ionicons name={getRatingIcon(rating)} size={22} color="#03120B" />
+                <Text style={styles.ratingLabel}>{rating}</Text>
               </View>
-            ))}
-          </View>
-        )}
+              <Text style={styles.scoreValue}>{adjustedScore}</Text>
+              <Text style={styles.scoreSuffix}>/ 100 safety score</Text>
+              <Text style={styles.scoreHint}>
+                Higher scores indicate safer destinations based on layered heuristic, intelligence, and semantic checks.
+              </Text>
+            </GlassCard>
+          </Animated.View>
 
-        {domainIntel && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Domain profile - IP2LOCATION</Text>
-              {typeof domainIntel.ageDays === 'number' && (
-                <Text style={styles.sectionCount}>
-                  Age: {domainIntel.ageDays} day{domainIntel.ageDays === 1 ? '' : 's'}
-                </Text>
-              )}
-            </View>
-
-            {domainIntel.isVeryNew && (
-              <View style={styles.domainIntelWarningPill}>
-                <Ionicons name="warning" size={14} color="#F97316" />
-                <Text style={styles.domainIntelWarningText}>
-                  Very new domain detected (&#60;= 7 days). Fresh domains are commonly used in phishing and scam campaigns.
-                </Text>
+          {issues.length > 0 && (
+            <GlassCard style={styles.sectionCardShell} glowColor="rgba(255,215,0,0.12)" contentStyle={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Security notes</Text>
+                <Text style={styles.sectionCount}>{issues.length} issue{issues.length === 1 ? '' : 's'}</Text>
               </View>
-            )}
-
-            <View style={styles.domainIntelRow}>
-              <Text style={styles.domainIntelLabel}>Domain</Text>
-              <Text style={styles.domainIntelValue}>{domainIntel.domain}</Text>
-            </View>
-
-            {domainIntel.createdAt && (
-              <View style={styles.domainIntelRow}>
-                <Text style={styles.domainIntelLabel}>Created</Text>
-                <Text style={styles.domainIntelValue}>
-                  {new Date(domainIntel.createdAt).toLocaleDateString()}
-                </Text>
-              </View>
-            )}
-
-            {domainIntel.expiresAt && (
-              <View style={styles.domainIntelRow}>
-                <Text style={styles.domainIntelLabel}>Expires</Text>
-                <Text style={styles.domainIntelValue}>
-                  {new Date(domainIntel.expiresAt).toLocaleDateString()}
-                </Text>
-              </View>
-            )}
-
-            {domainIntel.registrar && (
-              <View style={styles.domainIntelRow}>
-                <Text style={styles.domainIntelLabel}>Registrar</Text>
-                <Text style={styles.domainIntelValue}>{domainIntel.registrar}</Text>
-              </View>
-            )}
-
-            {(domainIntel.countryName || domainIntel.countryCode) && (
-              <View style={styles.domainIntelRow}>
-                <Text style={styles.domainIntelLabel}>Country</Text>
-                <Text style={styles.domainIntelValue}>
-                  {domainIntel.countryName || domainIntel.countryCode}
-                </Text>
-              </View>
-            )}
-
-            {domainIntel.nameservers && domainIntel.nameservers.length > 0 && (
-              <View style={styles.domainIntelRowColumn}>
-                <Text style={styles.domainIntelLabel}>Nameservers</Text>
-                <Text style={styles.domainIntelValue}>
-                  {domainIntel.nameservers.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {domainIntel.raw && (
-              <View style={styles.domainIntelRawBlock}>
-                <Text style={styles.domainIntelRawTitle}>Full WHOIS data</Text>
-                {buildWhoisEntries(domainIntel.raw).map((entry) => (
-                  <View key={entry.key} style={styles.domainIntelRawRow}>
-                    <Text style={styles.domainIntelRawKey}>{entry.key}</Text>
-                    <Text style={styles.domainIntelRawValue}>{entry.value}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Scanned URL</Text>
-          <Text style={styles.urlText} numberOfLines={3}>
-            {url}
-          </Text>
-        </View>
-
-        <TouchableOpacity style={styles.openButton} onPress={handleOpen}>
-          <Ionicons name="open-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.openButtonText}>Open</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.deepScanButton} onPress={handleDeepScan}>
-          <Ionicons name="shield-checkmark" size={20} color="#22C55E" />
-          <View style={styles.deepScanTextGroup}>
-            <Text style={styles.deepScanTitle}>Deep Scan</Text>
-            <Text style={styles.deepScanSubtitle}>
-              Run an advanced security scan with VirusTotal for this link.
-            </Text>
-          </View>
-          {isDeepScanLoading ? (
-            <Ionicons name="time-outline" size={18} color="#FACC15" />
-          ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+              {issues.map((issue, index) => (
+                <AnimatedIssueItem key={`${issue}-${index}`} issue={issue} index={index} />
+              ))}
+            </GlassCard>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.domainIntelButton} onPress={handleDomainIntel}>
-          <Ionicons name="globe-outline" size={20} color="#38BDF8" />
-          <View style={styles.domainIntelTextGroup}>
-            <Text style={styles.domainIntelTitle}>Domain intelligence</Text>
-            <Text style={styles.domainIntelSubtitle}>
-              Check domain age, registrar and WHOIS-style details via IP2LOCATION.
-            </Text>
-          </View>
-          {isDomainIntelLoading ? (
-            <Ionicons name="time-outline" size={18} color="#FACC15" />
-          ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6B7280" />
-          )}
-        </TouchableOpacity>
-
-        {virusTotalResult && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Deep Scan - VirusTotal</Text>
-              <Text style={styles.sectionCount}>External threat database</Text>
-            </View>
-
-            <View style={styles.vtRow}>
-              <View style={styles.vtPillHarmless}>
-                <Text style={styles.vtPillLabel}>Harmless</Text>
-                <Text style={styles.vtPillValue}>{virusTotalResult.harmless}</Text>
+          {domainIntel && (
+            <GlassCard style={styles.sectionCardShell} glowColor="rgba(56,189,248,0.14)" contentStyle={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Domain profile - IP2LOCATION</Text>
+                {typeof domainIntel.ageDays === 'number' && (
+                  <Text style={styles.sectionCount}>
+                    Age: {domainIntel.ageDays} day{domainIntel.ageDays === 1 ? '' : 's'}
+                  </Text>
+                )}
               </View>
-              <View style={styles.vtPillSuspicious}>
-                <Text style={styles.vtPillLabel}>Suspicious</Text>
-                <Text style={styles.vtPillValue}>{virusTotalResult.suspicious}</Text>
-              </View>
-              <View style={styles.vtPillMalicious}>
-                <Text style={styles.vtPillLabel}>Malicious</Text>
-                <Text style={styles.vtPillValue}>{virusTotalResult.malicious}</Text>
-              </View>
-            </View>
 
-            <View style={styles.vtRowSecondary}>
-              <Text style={styles.vtSecondaryText}>
-                Undetected: {virusTotalResult.undetected} • Timeouts: {virusTotalResult.timeout}
-              </Text>
-              {virusTotalResult.scanDate && (
-                <Text style={styles.vtSecondaryText}>
-                  Last analysis: {new Date(virusTotalResult.scanDate).toLocaleString()}
-                </Text>
+              {domainIntel.isVeryNew && (
+                <View style={styles.domainIntelWarningPill}>
+                  <Ionicons name="warning" size={14} color="#F97316" />
+                  <Text style={styles.domainIntelWarningText}>
+                    Very new domain detected (&#60;= 7 days). Fresh domains are commonly used in phishing and scam campaigns.
+                  </Text>
+                </View>
               )}
-              <Text style={styles.vtSourceText}>Data from VirusTotal API</Text>
-              <Text style={styles.vtNoteText}>
-                Verdict: {virusTotalResult.verdict}
-              </Text>
-              <Text style={styles.vtNoteText}>
-                VirusTotal reports only known threats. QR Guardian can still flag new or lookalike domains even when external databases show zero detections.
-              </Text>
-            </View>
 
-            {virusTotalResult.detections && virusTotalResult.detections.length > 0 && (
-              <View style={styles.domainIntelRawBlock}>
-                <Text style={styles.domainIntelRawTitle}>Engines that flagged this URL</Text>
-                {virusTotalResult.detections.map((detection) => (
-                  <View key={`${detection.engine}-${detection.result}`} style={styles.domainIntelRawRow}>
-                    <Text style={styles.domainIntelRawKey}>{detection.engine}</Text>
-                    <Text style={styles.domainIntelRawValue}>
-                      {getEngineVerdictLabel(detection.category, detection.result)}
-                    </Text>
-                  </View>
-                ))}
+              <View style={styles.domainIntelRow}>
+                <Text style={styles.domainIntelLabel}>Domain</Text>
+                <Text style={styles.domainIntelValue}>{domainIntel.domain}</Text>
               </View>
-            )}
 
-            {virusTotalResult.engines && virusTotalResult.engines.length > 0 && (
-              <View style={styles.domainIntelRawBlock}>
-                <Text style={styles.domainIntelRawTitle}>All security vendors</Text>
-                <ScrollView style={styles.vtEnginesScroll} nestedScrollEnabled>
-                  {[...virusTotalResult.engines]
-                    .sort((a, b) => {
-                      const weight = (category: string) => {
-                        const cat = (category || '').toUpperCase();
-                        if (cat === 'MALICIOUS') return 0;
-                        if (cat === 'SUSPICIOUS') return 1;
-                        return 2; // SAFE / UNDETECTED / UNKNOWN
-                      };
-                      return weight(a.category) - weight(b.category);
-                    })
-                    .map((engine) => (
-                    <View key={`${engine.engine}-${engine.result}`} style={styles.domainIntelRawRow}>
-                      <Text style={styles.domainIntelRawKey}>{engine.engine}</Text>
-                      <Text style={styles.domainIntelRawValue}>
-                        {getEngineVerdictLabel(engine.category, engine.result)}
-                      </Text>
+              {domainIntel.createdAt && (
+                <View style={styles.domainIntelRow}>
+                  <Text style={styles.domainIntelLabel}>Created</Text>
+                  <Text style={styles.domainIntelValue}>
+                    {new Date(domainIntel.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.expiresAt && (
+                <View style={styles.domainIntelRow}>
+                  <Text style={styles.domainIntelLabel}>Expires</Text>
+                  <Text style={styles.domainIntelValue}>
+                    {new Date(domainIntel.expiresAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.registrar && (
+                <View style={styles.domainIntelRow}>
+                  <Text style={styles.domainIntelLabel}>Registrar</Text>
+                  <Text style={styles.domainIntelValue}>{domainIntel.registrar}</Text>
+                </View>
+              )}
+
+              {(domainIntel.countryName || domainIntel.countryCode) && (
+                <View style={styles.domainIntelRow}>
+                  <Text style={styles.domainIntelLabel}>Country</Text>
+                  <Text style={styles.domainIntelValue}>
+                    {domainIntel.countryName || domainIntel.countryCode}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.nameservers && domainIntel.nameservers.length > 0 && (
+                <View style={styles.domainIntelRowColumn}>
+                  <Text style={styles.domainIntelLabel}>Nameservers</Text>
+                  <Text style={styles.domainIntelValue}>
+                    {domainIntel.nameservers.join(', ')}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.raw && (
+                <View style={styles.domainIntelRawBlock}>
+                  <Text style={styles.domainIntelRawTitle}>Full WHOIS data</Text>
+                  {buildWhoisEntries(domainIntel.raw).map((entry) => (
+                    <View key={entry.key} style={styles.domainIntelRawRow}>
+                      <Text style={styles.domainIntelRawKey}>{entry.key}</Text>
+                      <Text style={styles.domainIntelRawValue}>{entry.value}</Text>
                     </View>
                   ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {virusTotalResult.permalink && (
-              <View style={{ marginTop: 8 }}>
-                <Text style={styles.vtSourceText} numberOfLines={2}>
-                  Report URL: {virusTotalResult.permalink}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.aiButton} onPress={handleAiAnalysis}>
-          <Ionicons name="sparkles-outline" size={20} color="#38BDF8" />
-          <View style={styles.aiButtonTextGroup}>
-            <Text style={styles.aiButtonTitle}>Run AI Analysis</Text>
-            <Text style={styles.aiButtonSubtitle}>
-              Let AI inspect semantics & patterns for zero-day style threats.
-            </Text>
-          </View>
-          {isAiLoading ? (
-            <Text style={styles.aiLoadingText}>AI is analyzing semantics & pattern matching...</Text>
-          ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+                </View>
+              )}
+            </GlassCard>
           )}
-        </TouchableOpacity>
 
-        {aiInsight && (
-          <View style={styles.aiCardWrapper}>
-            <BlurView intensity={40} tint="dark" style={styles.aiBlurCard}>
-              <View
-                style={[
-                  styles.aiAccentBar,
-                  { backgroundColor: getAiAccentColor(aiInsight.verdict) },
-                ]}
-              />
-              <View style={styles.aiHeaderRow}>
-                <View style={styles.aiIconCircle}>
-                  <Ionicons
-                    name={getAiVerdictIcon(aiInsight.verdict)}
-                    size={18}
-                    color={getAiAccentColor(aiInsight.verdict)}
-                  />
+          <GlassCard style={styles.sectionCardShell} glowColor="rgba(56,189,248,0.12)" contentStyle={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Scanned URL</Text>
+            <Text style={styles.urlText} numberOfLines={3}>
+              {url}
+            </Text>
+          </GlassCard>
+
+          <TouchableOpacity style={styles.openButton} onPress={handleOpen} activeOpacity={0.9}>
+            <LinearGradient
+              colors={['rgba(0,255,65,0.92)', 'rgba(56,189,248,0.88)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.openButtonGradient}
+            >
+              <Ionicons name="open-outline" size={20} color="#03120B" />
+              <Text style={styles.openButtonText}>Open</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.deepScanButton} onPress={handleDeepScan} activeOpacity={0.9}>
+            <Ionicons name="shield-checkmark" size={20} color="#22C55E" />
+            <View style={styles.deepScanTextGroup}>
+              <Text style={styles.deepScanTitle}>Deep Scan</Text>
+              <Text style={styles.deepScanSubtitle}>
+                Run an advanced security scan with VirusTotal for this link.
+              </Text>
+            </View>
+            {isDeepScanLoading ? <InlineLoader /> : <Ionicons name="chevron-forward" size={18} color="#6B7280" />}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.domainIntelButton} onPress={handleDomainIntel} activeOpacity={0.9}>
+            <Ionicons name="globe-outline" size={20} color="#38BDF8" />
+            <View style={styles.domainIntelTextGroup}>
+              <Text style={styles.domainIntelTitle}>Domain intelligence</Text>
+              <Text style={styles.domainIntelSubtitle}>
+                Check domain age, registrar and WHOIS-style details via IP2LOCATION.
+              </Text>
+            </View>
+            {isDomainIntelLoading ? <InlineLoader /> : <Ionicons name="chevron-forward" size={18} color="#6B7280" />}
+          </TouchableOpacity>
+
+          {virusTotalResult && (
+            <Animated.View entering={FadeIn.duration(360)}>
+              <GlassCard style={styles.sectionCardShell} glowColor="rgba(34,197,94,0.1)" contentStyle={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Deep Scan - VirusTotal</Text>
+                  <Text style={styles.sectionCount}>External threat database</Text>
                 </View>
-                <View style={styles.aiHeaderTextGroup}>
-                  <Text style={styles.aiTitle}>AI Insight</Text>
-                  <Text style={styles.aiSubtitle}>Phishing, deception & intent analysis</Text>
+
+                <View style={styles.vtRow}>
+                  <View style={styles.vtPillHarmless}>
+                    <Text style={styles.vtPillLabel}>Harmless</Text>
+                    <Text style={styles.vtPillValue}>{virusTotalResult.harmless}</Text>
+                  </View>
+                  <View style={styles.vtPillSuspicious}>
+                    <Text style={styles.vtPillLabel}>Suspicious</Text>
+                    <Text style={styles.vtPillValue}>{virusTotalResult.suspicious}</Text>
+                  </View>
+                  <View style={styles.vtPillMalicious}>
+                    <Text style={styles.vtPillLabel}>Malicious</Text>
+                    <Text style={styles.vtPillValue}>{virusTotalResult.malicious}</Text>
+                  </View>
                 </View>
+
+                <View style={styles.vtRowSecondary}>
+                  <Text style={styles.vtSecondaryText}>
+                    Undetected: {virusTotalResult.undetected} • Timeouts: {virusTotalResult.timeout}
+                  </Text>
+                  {virusTotalResult.scanDate && (
+                    <Text style={styles.vtSecondaryText}>
+                      Last analysis: {new Date(virusTotalResult.scanDate).toLocaleString()}
+                    </Text>
+                  )}
+                  <Text style={styles.vtSourceText}>Data from VirusTotal API</Text>
+                  <Text style={styles.vtNoteText}>
+                    Verdict: {virusTotalResult.verdict}
+                  </Text>
+                  <Text style={styles.vtNoteText}>
+                    VirusTotal reports only known threats. QR Guardian can still flag new or lookalike domains even when external databases show zero detections.
+                  </Text>
+                </View>
+
+                {virusTotalResult.detections && virusTotalResult.detections.length > 0 && (
+                  <View style={styles.domainIntelRawBlock}>
+                    <Text style={styles.domainIntelRawTitle}>Engines that flagged this URL</Text>
+                    {virusTotalResult.detections.map((detection) => (
+                      <View key={`${detection.engine}-${detection.result}`} style={styles.domainIntelRawRow}>
+                        <Text style={styles.domainIntelRawKey}>{detection.engine}</Text>
+                        <Text style={styles.domainIntelRawValue}>
+                          {getEngineVerdictLabel(detection.category, detection.result)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {virusTotalResult.engines && virusTotalResult.engines.length > 0 && (
+                  <View style={styles.domainIntelRawBlock}>
+                    <Text style={styles.domainIntelRawTitle}>All security vendors</Text>
+                    <ScrollView style={styles.vtEnginesScroll} nestedScrollEnabled>
+                      {[...virusTotalResult.engines]
+                        .sort((a, b) => {
+                          const weight = (category: string) => {
+                            const cat = (category || '').toUpperCase();
+                            if (cat === 'MALICIOUS') return 0;
+                            if (cat === 'SUSPICIOUS') return 1;
+                            return 2;
+                          };
+                          return weight(a.category) - weight(b.category);
+                        })
+                        .map((engine) => (
+                          <View key={`${engine.engine}-${engine.result}`} style={styles.domainIntelRawRow}>
+                            <Text style={styles.domainIntelRawKey}>{engine.engine}</Text>
+                            <Text style={styles.domainIntelRawValue}>
+                              {getEngineVerdictLabel(engine.category, engine.result)}
+                            </Text>
+                          </View>
+                        ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {virusTotalResult.permalink && (
+                  <View style={styles.vtLinkWrap}>
+                    <Text style={styles.vtSourceText} numberOfLines={2}>
+                      Report URL: {virusTotalResult.permalink}
+                    </Text>
+                  </View>
+                )}
+              </GlassCard>
+            </Animated.View>
+          )}
+
+          <TouchableOpacity style={styles.aiButton} onPress={handleAiAnalysis} activeOpacity={0.9}>
+            <Ionicons name="sparkles-outline" size={20} color="#38BDF8" />
+            <View style={styles.aiButtonTextGroup}>
+              <Text style={styles.aiButtonTitle}>Run AI Analysis</Text>
+              <Text style={styles.aiButtonSubtitle}>
+                Let AI inspect semantics & patterns for zero-day style threats.
+              </Text>
+            </View>
+            {isAiLoading ? <InlineLoader /> : <Ionicons name="chevron-forward" size={18} color="#6B7280" />}
+          </TouchableOpacity>
+
+          {aiInsight && (
+            <Animated.View
+              style={[
+                styles.aiCardWrapper,
+                aiCardAnimatedStyle,
+              ]}
+            >
+              <BlurView intensity={46} tint="dark" style={styles.aiBlurCard}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.02)', 'rgba(56,189,248,0.08)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
                 <View
                   style={[
-                    styles.aiVerdictPill,
-                    aiInsight.verdict === 'SAFE'
-                      ? styles.aiVerdictSafe
-                      : aiInsight.verdict === 'SUSPICIOUS'
-                      ? styles.aiVerdictSuspicious
-                      : aiInsight.verdict === 'NEUTRAL'
-                      ? styles.aiVerdictNeutral
-                      : styles.aiVerdictDangerous,
-                  ]}
-                >
-                  <Text style={styles.aiVerdictText}>{aiInsight.verdict}</Text>
-                </View>
-              </View>
-
-              <View style={styles.aiMetaRow}>
-                <View style={styles.aiMetaChip}>
-                  <Text style={styles.aiMetaLabel}>Threat type</Text>
-                  <Text style={styles.aiMetaValue}>{aiInsight.threatType}</Text>
-                </View>
-                <View style={styles.aiMetaChip}>
-                  <Text style={styles.aiMetaLabel}>Risk score</Text>
-                  <Text style={styles.aiMetaValue}>{Math.round(aiInsight.riskScore)}/100</Text>
-                </View>
-              </View>
-
-              <View style={styles.aiReasonBlock}>
-                <Text style={styles.aiReasonLabel}>Why</Text>
-                <Text style={styles.aiReasonText}>{aiInsight.reason}</Text>
-              </View>
-
-              <View style={styles.aiRiskRow}>
-                <Text style={styles.aiRiskLabel}>AI confidence meter</Text>
-                <Text style={styles.aiRiskValue}>{aiInsight.verdict}</Text>
-              </View>
-              <View style={styles.aiRiskBarTrack}>
-                <View
-                  style={[
-                    styles.aiRiskBarFill,
-                    {
-                      width: `${Math.max(0, Math.min(100, aiInsight.riskScore))}%`,
-                      backgroundColor: getAiAccentColor(aiInsight.verdict),
-                    },
+                    styles.aiAccentBar,
+                    { backgroundColor: getAiAccentColor(aiInsight.verdict) },
                   ]}
                 />
-              </View>
+                <View style={styles.aiHeaderRow}>
+                  <View style={styles.aiIconCircle}>
+                    <Ionicons
+                      name={getAiVerdictIcon(aiInsight.verdict)}
+                      size={18}
+                      color={getAiAccentColor(aiInsight.verdict)}
+                    />
+                  </View>
+                  <View style={styles.aiHeaderTextGroup}>
+                    <Text style={styles.aiTitle}>AI Insight</Text>
+                    <Text style={styles.aiSubtitle}>Phishing, deception & intent analysis</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.aiVerdictPill,
+                      aiInsight.verdict === 'SAFE'
+                        ? styles.aiVerdictSafe
+                        : aiInsight.verdict === 'SUSPICIOUS'
+                        ? styles.aiVerdictSuspicious
+                        : aiInsight.verdict === 'NEUTRAL'
+                        ? styles.aiVerdictNeutral
+                        : styles.aiVerdictDangerous,
+                    ]}
+                  >
+                    <Text style={styles.aiVerdictText}>{aiInsight.verdict}</Text>
+                  </View>
+                </View>
 
-              <Text style={styles.aiThreatTypeText}>AI reasoning is advisory and should be considered together with QR Guardian's rule-based checks.</Text>
-            </BlurView>
-          </View>
-        )}
+                <View style={styles.aiMetaRow}>
+                  <View style={styles.aiMetaChip}>
+                    <Text style={styles.aiMetaLabel}>Threat type</Text>
+                    <Text style={styles.aiMetaValue}>{aiInsight.threatType}</Text>
+                  </View>
+                  <View style={styles.aiMetaChip}>
+                    <Text style={styles.aiMetaLabel}>Risk score</Text>
+                    <Text style={styles.aiMetaValue}>{Math.round(aiInsight.riskScore)}/100</Text>
+                  </View>
+                </View>
 
-        <TouchableOpacity style={styles.trustButton} onPress={handleFavoriteToggle}>
-          <Ionicons
-            name={isFavorited ? 'star' : 'star-outline'}
-            size={22}
-            color={isFavorited ? '#FFD700' : '#FFFFFF'}
-          />
-          <View style={styles.trustTextGroup}>
-            <Text style={styles.trustTitle}>{isFavorited ? 'Trusted site' : 'Trust this site'}</Text>
-            <Text style={styles.trustSubtitle}>
-              {isFavorited
-                ? 'This domain is marked as trusted in QR Guardian.'
-                : 'Mark this domain as trusted to reduce future warnings.'}
-            </Text>
-          </View>
-        </TouchableOpacity>
+                <View style={styles.aiReasonBlock}>
+                  <Text style={styles.aiReasonLabel}>Why</Text>
+                  <Text style={styles.aiReasonText}>{aiInsight.reason}</Text>
+                </View>
 
-        {showRiskModal && (
-          <View style={styles.riskOverlay}>
-            <View style={styles.riskCard}>
-              <View style={styles.riskIconWrapper}>
-                <Ionicons name="warning" size={26} color="#FFCC00" />
-              </View>
-              <Text style={styles.riskTitle}>Proceed with caution</Text>
-              <Text style={styles.riskMessage}>
-                This QR scored {adjustedScore}/100 in QR Guardian.
-                {'\n'}
-                {'\n'}Lower scores can indicate phishing, hidden charges, or risky destinations.
+                <View style={styles.aiRiskRow}>
+                  <Text style={styles.aiRiskLabel}>AI confidence meter</Text>
+                  <Text style={styles.aiRiskValue}>{aiInsight.verdict}</Text>
+                </View>
+                <View style={styles.aiRiskBarTrack}>
+                  <View
+                    style={[
+                      styles.aiRiskBarFill,
+                      {
+                        width: `${Math.max(0, Math.min(100, aiInsight.riskScore))}%`,
+                        backgroundColor: getAiAccentColor(aiInsight.verdict),
+                      },
+                    ]}
+                  />
+                </View>
+
+                <Text style={styles.aiThreatTypeText}>AI reasoning is advisory and should be considered together with QR Guardian&apos;s rule-based checks.</Text>
+              </BlurView>
+            </Animated.View>
+          )}
+
+          <TouchableOpacity style={styles.trustButton} onPress={handleFavoriteToggle} activeOpacity={0.9}>
+            <Ionicons
+              name={isFavorited ? 'star' : 'star-outline'}
+              size={22}
+              color={isFavorited ? '#FFD700' : '#FFFFFF'}
+            />
+            <View style={styles.trustTextGroup}>
+              <Text style={styles.trustTitle}>{isFavorited ? 'Trusted site' : 'Trust this site'}</Text>
+              <Text style={styles.trustSubtitle}>
+                {isFavorited
+                  ? 'This domain is marked as trusted in QR Guardian.'
+                  : 'Mark this domain as trusted to reduce future warnings.'}
               </Text>
-              <View style={styles.riskButtonsRow}>
-                <TouchableOpacity style={styles.riskCancelButton} onPress={handleRiskCancel}>
-                  <Text style={styles.riskCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.riskConfirmButton} onPress={handleRiskConfirm}>
-                  <Text style={styles.riskConfirmText}>Open anyway</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          </View>
-        )}
-      </ScrollView>
+          </TouchableOpacity>
+
+          {showRiskModal && (
+            <View style={styles.riskOverlay}>
+              <GlassCard style={styles.riskCardShell} glowColor={`${ratingPulseColor}88`} contentStyle={styles.riskCard}>
+                <View style={styles.riskIconWrapper}>
+                  <Ionicons name="warning" size={26} color="#FFCC00" />
+                </View>
+                <Text style={styles.riskTitle}>Proceed with caution</Text>
+                <Text style={styles.riskMessage}>
+                  This QR scored {adjustedScore}/100 in QR Guardian.
+                  {'\n'}
+                  {'\n'}Lower scores can indicate phishing, hidden charges, or risky destinations.
+                </Text>
+                <View style={styles.riskButtonsRow}>
+                  <TouchableOpacity style={styles.riskCancelButton} onPress={handleRiskCancel} activeOpacity={0.9}>
+                    <Text style={styles.riskCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.riskConfirmButton} onPress={handleRiskConfirm} activeOpacity={0.9}>
+                    <Text style={styles.riskConfirmText}>Open anyway</Text>
+                  </TouchableOpacity>
+                </View>
+              </GlassCard>
+            </View>
+          )}
+        </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -857,10 +1018,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  screenWrapper: {
+    flex: 1,
+  },
   content: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
   headerRow: {
     flexDirection: 'row',
@@ -873,6 +1037,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  headerIconShell: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(125,211,252,0.18)',
+  },
   headerTextGroup: {
     marginLeft: 10,
     flexShrink: 1,
@@ -880,33 +1054,40 @@ const styles = StyleSheet.create({
   title: {
     color: '#FFFFFF',
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
     marginTop: 2,
   },
   headerAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: 'rgba(10,132,255,0.12)',
+    backgroundColor: 'rgba(2,12,27,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.18)',
     marginLeft: 8,
   },
   headerActionText: {
-    color: '#0A84FF',
+    color: '#38BDF8',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: 4,
   },
-  ratingCard: {
-    backgroundColor: '#111111',
-    borderRadius: 16,
-    padding: 20,
+  ratingCardShell: {
+    borderRadius: 24,
     marginBottom: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 16,
+  },
+  ratingCard: {
+    backgroundColor: 'rgba(5,10,20,0.86)',
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
   },
   ratingBadge: {
@@ -919,33 +1100,35 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   ratingLabel: {
-    color: '#FFFFFF',
+    color: '#03120B',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
     marginLeft: 6,
     letterSpacing: 0.5,
   },
   scoreValue: {
     color: '#FFFFFF',
-    fontSize: 40,
+    fontSize: 46,
     fontWeight: '800',
   },
   scoreSuffix: {
-    color: '#FFFFFF',
+    color: '#E2E8F0',
     fontSize: 14,
     marginTop: 2,
   },
   scoreHint: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
     marginTop: 8,
-    lineHeight: 16,
+    lineHeight: 18,
+  },
+  sectionCardShell: {
+    marginBottom: 14,
   },
   sectionCard: {
-    backgroundColor: '#111111',
-    borderRadius: 16,
+    backgroundColor: 'rgba(5,10,20,0.82)',
+    borderRadius: 22,
     padding: 16,
-    marginBottom: 14,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -956,10 +1139,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   sectionCount: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
   },
   issueRow: {
@@ -967,24 +1150,36 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginTop: 6,
   },
+  issueIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    marginRight: 8,
+    marginTop: 1,
+  },
   issueText: {
     color: '#FFFFFF',
     fontSize: 14,
-    marginLeft: 8,
     flex: 1,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   urlText: {
-    color: '#FFFFFF',
+    color: '#E2E8F0',
     fontSize: 14,
     marginTop: 4,
+    lineHeight: 20,
   },
   trustButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#111111',
+    borderRadius: 20,
+    backgroundColor: 'rgba(5,10,20,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.14)',
     marginBottom: 14,
   },
   trustTextGroup: {
@@ -997,7 +1192,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   trustSubtitle: {
-    color: '#8E8E93',
+    color: '#94A3B8',
     fontSize: 12,
     marginTop: 2,
   },
@@ -1007,9 +1202,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: '#020617',
+    backgroundColor: 'rgba(2,12,27,0.84)',
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: 'rgba(34,197,94,0.16)',
     marginBottom: 14,
   },
   deepScanTextGroup: {
@@ -1094,15 +1289,18 @@ const styles = StyleSheet.create({
     maxHeight: 160,
     marginTop: 6,
   },
+  vtLinkWrap: {
+    marginTop: 8,
+  },
   domainIntelButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: '#020617',
+    backgroundColor: 'rgba(2,12,27,0.84)',
     borderWidth: 1,
-    borderColor: '#0F172A',
+    borderColor: 'rgba(56,189,248,0.18)',
     marginBottom: 14,
   },
   domainIntelTextGroup: {
@@ -1187,9 +1385,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: '#020617',
+    backgroundColor: 'rgba(2,12,27,0.84)',
     borderWidth: 1,
-    borderColor: '#0F172A',
+    borderColor: 'rgba(56,189,248,0.18)',
     marginBottom: 14,
   },
   aiButtonTextGroup: {
@@ -1212,21 +1410,29 @@ const styles = StyleSheet.create({
     maxWidth: 120,
     textAlign: 'right',
   },
+  inlineLoaderWrap: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  inlineLoaderSpacing: {
+    marginTop: 6,
+  },
   openButton: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  openButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1C1C1E',
     paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#2C2C2E',
-    marginBottom: 12,
+    borderRadius: 18,
   },
   openButtonText: {
-    color: '#FFFFFF',
+    color: '#03120B',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '800',
     marginLeft: 8,
   },
   riskOverlay: {
@@ -1235,14 +1441,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  riskCard: {
+  riskCardShell: {
     width: '85%',
-    backgroundColor: '#1C1C1E',
+  },
+  riskCard: {
+    backgroundColor: 'rgba(5,10,20,0.92)',
     borderRadius: 18,
     paddingHorizontal: 20,
     paddingVertical: 22,
     borderWidth: 1,
-    borderColor: '#2C2C2E',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   riskIconWrapper: {
     width: 40,
@@ -1297,7 +1505,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#0EA5E9',
     paddingVertical: 14,
     borderRadius: 14,
     marginTop: 4,
@@ -1332,7 +1540,6 @@ const styles = StyleSheet.create({
   aiCardWrapper: {
     marginBottom: 16,
     borderRadius: 20,
-    overflow: 'hidden',
   },
   aiBlurCard: {
     padding: 18,
@@ -1345,6 +1552,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
+    overflow: 'hidden',
   },
   aiAccentBar: {
     height: 4,

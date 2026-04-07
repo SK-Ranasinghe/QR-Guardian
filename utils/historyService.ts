@@ -39,6 +39,16 @@ export const getScanHistory = async (): Promise<ScanHistoryItem[]> => {
   }
 };
 
+export const deleteHistoryItem = async (id: string) => {
+  try {
+    const history = await getScanHistory();
+    const filteredHistory = history.filter((item) => item.id !== id);
+    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(filteredHistory));
+  } catch (error) {
+    console.error('Error deleting history item:', error);
+  }
+};
+
 export const clearHistory = async () => {
   try {
     await AsyncStorage.removeItem(HISTORY_KEY);
