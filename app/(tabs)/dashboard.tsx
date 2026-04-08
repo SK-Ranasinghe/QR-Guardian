@@ -1,7 +1,8 @@
 import { ScanHistoryItem, getScanHistory } from '@/utils/historyService';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type RangeKey = '7d' | '30d' | 'all';
@@ -10,13 +11,16 @@ export default function DashboardScreen() {
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
   const [range, setRange] = useState<RangeKey>('7d');
 
-  useEffect(() => {
-    const load = async () => {
-      const data = await getScanHistory();
-      setHistory(data);
-    };
-    load();
+  const loadHistory = useCallback(async () => {
+    const data = await getScanHistory();
+    setHistory(data);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [loadHistory])
+  );
 
   const {
     total,
@@ -31,11 +35,19 @@ export default function DashboardScreen() {
     gradeColor,
     gradeLabel,
     subtitleLabel,
+    periodLabel,
+    activeDaysCount,
+    averageDailyScans,
+    busiestDayCount,
+    busiestDayLabel,
+    latestScanLabel,
   } = useMemo(() => {
     const now = new Date();
     const dayMs = 24 * 60 * 60 * 1000;
+    const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatShortLabel = (date: Date) => `${monthShort[date.getMonth()]} ${date.getDate()}`;
 
-    let start = new Date();
+    let start = new Date(now);
     start.setHours(0, 0, 0, 0);
 
     if (range === '7d') {
@@ -43,25 +55,31 @@ export default function DashboardScreen() {
     } else if (range === '30d') {
       start.setDate(start.getDate() - 29);
     } else {
-      // all-time: start from first scan date if available
-      if (history.length > 0) {
-        const first = history[history.length - 1];
-        const firstDate = new Date(first.timestamp);
-        firstDate.setHours(0, 0, 0, 0);
-        start = firstDate;
+      const oldestHistoryMs = history.reduce((oldest, item) => {
+        const itemMs = new Date(item.timestamp).getTime();
+        if (Number.isNaN(itemMs)) {
+          return oldest;
+        }
+        return Math.min(oldest, itemMs);
+      }, Number.POSITIVE_INFINITY);
+
+      if (oldestHistoryMs !== Number.POSITIVE_INFINITY) {
+        start = new Date(oldestHistoryMs);
+        start.setHours(0, 0, 0, 0);
       }
     }
 
     const totalDays = Math.max(1, Math.floor((now.getTime() - start.getTime()) / dayMs) + 1);
-    const maxBuckets = range === '7d' ? 7 : range === '30d' ? 30 : 30; // cap all-time chart to last 30 days
-    const bucketCount = Math.min(totalDays, maxBuckets);
+    const bucketCount = range === 'all' ? totalDays : Math.min(totalDays, range === '7d' ? 7 : 30);
 
     const buckets: {
       weekday: string;
       dateLabel: string;
+      fullLabel: string;
       safe: number;
       caution: number;
       dangerous: number;
+      total: number;
     }[] = [];
 
     const weekdayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -70,20 +88,30 @@ export default function DashboardScreen() {
       const weekday = weekdayShort[d.getDay()];
       const day = d.getDate();
       const month = d.getMonth() + 1;
-      const dateLabel = `${day}/${month}`; // e.g., 11/10
-      buckets.push({ weekday, dateLabel, safe: 0, caution: 0, dangerous: 0 });
+      const dateLabel = `${day}/${month}`;
+      buckets.push({
+        weekday,
+        dateLabel,
+        fullLabel: formatShortLabel(d),
+        safe: 0,
+        caution: 0,
+        dangerous: 0,
+        total: 0,
+      });
     }
 
     let safe = 0;
     let caution = 0;
     let dangerous = 0;
-
-    const inRange: ScanHistoryItem[] = [];
+    let latestScanTime: number | null = null;
 
     history.forEach((item) => {
       const ts = new Date(item.timestamp);
-      if (ts < start || ts > now) return;
-      inRange.push(item);
+      if (Number.isNaN(ts.getTime()) || ts < start || ts > now) return;
+
+      if (latestScanTime === null || ts.getTime() > latestScanTime) {
+        latestScanTime = ts.getTime();
+      }
 
       if (item.safetyRating === 'SAFE') safe++;
       else if (item.safetyRating === 'CAUTION') caution++;
@@ -101,6 +129,8 @@ export default function DashboardScreen() {
       } else if (item.safetyRating === 'DANGEROUS') {
         buckets[idx].dangerous += 1;
       }
+
+      buckets[idx].total += 1;
     });
 
     const totalCount = safe + caution + dangerous;
@@ -108,6 +138,25 @@ export default function DashboardScreen() {
 
     const safeP = totalCount === 0 ? 0 : Math.round((safe / totalCount) * 100);
     const riskyP = totalCount === 0 ? 0 : 100 - safeP;
+    const activeDays = buckets.filter((bucket) => bucket.total > 0).length;
+    const averageRaw = totalCount / Math.max(1, bucketCount);
+    const averageDaily = totalCount === 0
+      ? '0.0'
+      : averageRaw >= 10
+      ? Math.round(averageRaw).toString()
+      : averageRaw.toFixed(1);
+    const busiestBucket = buckets.reduce(
+      (currentBest, bucket) => (bucket.total > currentBest.total ? bucket : currentBest),
+      {
+        weekday: '--',
+        dateLabel: '--',
+        fullLabel: '--',
+        safe: 0,
+        caution: 0,
+        dangerous: 0,
+        total: 0,
+      }
+    );
 
     let gradeLocal = 'C';
     let gradeColorLocal = '#FACC15';
@@ -140,7 +189,16 @@ export default function DashboardScreen() {
         ? 'Your last 7 days of QR security'
         : range === '30d'
         ? 'Your last 30 days of QR security'
-        : 'Your overall QR security history';
+        : 'Your full QR security history';
+
+    const periodLocal =
+      buckets.length > 0
+        ? `${buckets[0].fullLabel} - ${buckets[buckets.length - 1].fullLabel}`
+        : 'Waiting for scans';
+
+    const latestScanLocal = latestScanTime !== null
+      ? new Date(latestScanTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : 'No scans yet';
 
     return {
       total: totalCount,
@@ -155,6 +213,12 @@ export default function DashboardScreen() {
       gradeColor: gradeColorLocal,
       gradeLabel: gradeLabelLocal,
       subtitleLabel: subtitleLocal,
+      periodLabel: periodLocal,
+      activeDaysCount: activeDays,
+      averageDailyScans: averageDaily,
+      busiestDayCount: busiestBucket.total,
+      busiestDayLabel: busiestBucket.total > 0 ? busiestBucket.fullLabel : '--',
+      latestScanLabel: latestScanLocal,
     };
   }, [history, range]);
 
@@ -162,6 +226,7 @@ export default function DashboardScreen() {
     1,
     ...dailyBuckets.map((d) => d.safe + d.caution + d.dangerous)
   );
+  const chartMaxValue = Math.max(4, Math.ceil(maxPerDay * 1.15));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -219,12 +284,39 @@ export default function DashboardScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.snapshotRow}>
+              <View style={styles.snapshotCard}>
+                <View style={styles.snapshotIconWrap}>
+                  <Ionicons name="shield-checkmark" size={16} color="#22C55E" />
+                </View>
+                <Text style={styles.snapshotValue}>{safePercent}%</Text>
+                <Text style={styles.snapshotLabel}>Protection rate</Text>
+              </View>
+              <View style={styles.snapshotCard}>
+                <View style={styles.snapshotIconWrap}>
+                  <Ionicons name="calendar-clear" size={16} color="#38BDF8" />
+                </View>
+                <Text style={styles.snapshotValue}>{activeDaysCount}</Text>
+                <Text style={styles.snapshotLabel}>Active days</Text>
+              </View>
+              <View style={styles.snapshotCard}>
+                <View style={styles.snapshotIconWrap}>
+                  <Ionicons name="pulse" size={16} color="#A78BFA" />
+                </View>
+                <Text style={styles.snapshotValue}>{averageDailyScans}</Text>
+                <Text style={styles.snapshotLabel}>Daily avg</Text>
+              </View>
+            </View>
+
             <View style={styles.statsRow}>
               <View style={styles.statCardPrimary}>
                 <View style={styles.statPrimaryHeaderRow}>
-                  <Text style={styles.statLabel}>
-                    Total scans {range === '7d' ? '(7 days)' : range === '30d' ? '(30 days)' : '(all time)'}
-                  </Text>
+                  <View>
+                    <Text style={styles.statLabel}>
+                      Total scans {range === '7d' ? '(7 days)' : range === '30d' ? '(30 days)' : '(all time)'}
+                    </Text>
+                    <Text style={styles.statPeriod}>{periodLabel}</Text>
+                  </View>
                   <View style={[styles.gradePill, { borderColor: gradeColor }]}> 
                     <Text style={[styles.gradePillGrade, { color: gradeColor }]}>{grade}</Text>
                     <Text style={styles.gradePillLabel}>{gradeLabel}</Text>
@@ -232,18 +324,30 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={styles.statNumber}>{total}</Text>
                 <Text style={styles.statHint}>
-                  {safePercent}% safe • {riskyPercent}% risky
+                  {safePercent}% safe • {riskyPercent}% flagged • Last scan {latestScanLabel}
                 </Text>
+                <View style={styles.heroMetricsRow}>
+                  <View style={styles.heroMetricChip}>
+                    <Ionicons name="flame" size={14} color="#F97316" />
+                    <Text style={styles.heroMetricChipText}>{busiestDayCount} on {busiestDayLabel}</Text>
+                  </View>
+                  <View style={styles.heroMetricChip}>
+                    <Ionicons name="warning" size={14} color="#F59E0B" />
+                    <Text style={styles.heroMetricChipText}>{riskyCount} risky results</Text>
+                  </View>
+                </View>
               </View>
 
               <View style={styles.statColumnRight}>
                 <View style={styles.statCardSmall}>
                   <Text style={[styles.statBadge, { color: '#34C759' }]}>SAFE</Text>
                   <Text style={styles.statNumberSmall}>{safeCount}</Text>
+                  <Text style={styles.statSmallHint}>trusted scans</Text>
                 </View>
                 <View style={styles.statCardSmall}>
-                  <Text style={[styles.statBadge, { color: '#FF3B30' }]}>RISKY</Text>
-                  <Text style={styles.statNumberSmall}>{riskyCount}</Text>
+                  <Text style={[styles.statBadge, { color: '#38BDF8' }]}>AVG / DAY</Text>
+                  <Text style={styles.statNumberSmall}>{averageDailyScans}</Text>
+                  <Text style={styles.statSmallHint}>across this range</Text>
                 </View>
               </View>
             </View>
@@ -252,79 +356,106 @@ export default function DashboardScreen() {
               <View style={styles.detailCard}>
                 <Text style={styles.detailLabel}>Caution</Text>
                 <Text style={[styles.detailValue, { color: '#FF9500' }]}>{cautionCount}</Text>
+                <Text style={styles.detailCaption}>Needs a closer look</Text>
               </View>
               <View style={styles.detailCard}>
                 <Text style={styles.detailLabel}>Dangerous</Text>
-                <Text style={[styles.detailValue, { color: '#FF3B30' }]}>
-                  {dangerousCount}
-                </Text>
+                <Text style={[styles.detailValue, { color: '#FF3B30' }]}>{dangerousCount}</Text>
+                <Text style={styles.detailCaption}>High-risk detections</Text>
+              </View>
+              <View style={styles.detailCard}>
+                <Text style={styles.detailLabel}>Busiest day</Text>
+                <Text style={[styles.detailValue, { color: '#38BDF8' }]}>{busiestDayCount}</Text>
+                <Text style={styles.detailCaption}>{busiestDayLabel}</Text>
               </View>
             </View>
 
             <View style={styles.chartCard}>
               <View style={styles.chartHeaderRow}>
-                <Text style={styles.chartTitle}>Scan activity</Text>
-                <View style={styles.legendRow}>
+                <View>
+                  <Text style={styles.chartTitle}>Scan activity</Text>
+                  <Text style={styles.chartSubtitle}>{periodLabel}</Text>
+                </View>
+                <View style={styles.chartMetaBadge}>
+                  <Ionicons name="analytics" size={14} color="#38BDF8" />
+                  <Text style={styles.chartMetaText}>{total} scans tracked</Text>
+                </View>
+              </View>
+
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
                   <View style={[styles.legendDot, { backgroundColor: '#34C759' }]} />
                   <Text style={styles.legendLabel}>Safe</Text>
-                  <View style={[styles.legendDot, { backgroundColor: '#F59E0B', marginLeft: 12 }]} />
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
                   <Text style={styles.legendLabel}>Caution</Text>
-                  <View style={[styles.legendDot, { backgroundColor: '#EF4444', marginLeft: 12 }]} />
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
                   <Text style={styles.legendLabel}>Dangerous</Text>
                 </View>
               </View>
 
               <View style={styles.chartBody}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chartScrollContent}
-                >
-                  {dailyBuckets.map((day) => {
-                    const safeHeight = (day.safe / maxPerDay) * 80;
-                    const cautionHeight = (day.caution / maxPerDay) * 80;
-                    const dangerousHeight = (day.dangerous / maxPerDay) * 80;
+                <View style={styles.chartYAxis}>
+                  <Text style={styles.chartAxisLabel}>{chartMaxValue}</Text>
+                  <Text style={styles.chartAxisLabel}>{Math.max(1, Math.ceil(chartMaxValue / 2))}</Text>
+                  <Text style={styles.chartAxisLabel}>0</Text>
+                </View>
 
-                    return (
-                      <View
-                        key={`${day.weekday}-${day.dateLabel}`}
-                        style={styles.chartBarWrapper}
-                      >
-                        <View style={styles.chartBarStack}>
-                          <View
-                            style={[
-                              styles.chartBar,
-                              {
-                                height: safeHeight,
-                                backgroundColor: '#34C759',
-                              },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              styles.chartBar,
-                              {
-                                height: cautionHeight,
-                                backgroundColor: '#F59E0B',
-                              },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              styles.chartBar,
-                              {
-                                height: dangerousHeight,
-                                backgroundColor: '#EF4444',
-                              },
-                            ]}
-                          />
+                <View style={styles.chartPlot}>
+                  <View style={[styles.chartGridLine, styles.chartGridLineTop]} />
+                  <View style={[styles.chartGridLine, styles.chartGridLineMiddle]} />
+                  <View style={[styles.chartGridLine, styles.chartGridLineBottom]} />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chartScrollContent}
+                  >
+                    {dailyBuckets.map((day) => {
+                      const totalForDay = day.total;
+                      const trackHeight = 104;
+                      const safeHeight = day.safe === 0
+                        ? 0
+                        : Math.max(6, (day.safe / chartMaxValue) * trackHeight);
+                      const cautionHeight = day.caution === 0
+                        ? 0
+                        : Math.max(6, (day.caution / chartMaxValue) * trackHeight);
+                      const dangerousHeight = day.dangerous === 0
+                        ? 0
+                        : Math.max(6, (day.dangerous / chartMaxValue) * trackHeight);
+
+                      return (
+                        <View
+                          key={`${day.weekday}-${day.dateLabel}`}
+                          style={styles.chartBarWrapper}
+                        >
+                          <View style={styles.chartBarGroup}>
+                            <View style={styles.chartMiniBarTrack}>
+                              {safeHeight > 0 && (
+                                <View style={[styles.chartMiniBar, styles.chartBarSafe, { height: safeHeight }]} />
+                              )}
+                            </View>
+                            <View style={styles.chartMiniBarTrack}>
+                              {cautionHeight > 0 && (
+                                <View style={[styles.chartMiniBar, styles.chartBarCaution, { height: cautionHeight }]} />
+                              )}
+                            </View>
+                            <View style={styles.chartMiniBarTrack}>
+                              {dangerousHeight > 0 && (
+                                <View style={[styles.chartMiniBar, styles.chartBarDangerous, { height: dangerousHeight }]} />
+                              )}
+                            </View>
+                          </View>
+                          <Text style={styles.chartValueText}>{totalForDay > 0 ? totalForDay : ''}</Text>
+                          <Text style={styles.chartLabel}>{day.weekday}</Text>
+                          <Text style={styles.chartSubLabel}>{day.dateLabel}</Text>
                         </View>
-                        <Text style={styles.chartLabel}>{day.weekday}</Text>
-                        <Text style={styles.chartSubLabel}>{day.dateLabel}</Text>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
               </View>
             </View>
           </>
@@ -342,13 +473,13 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 28,
+    paddingBottom: 32,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderRadius: 24,
@@ -425,15 +556,49 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 21,
   },
+  snapshotRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  snapshotCard: {
+    width: '31.5%',
+    backgroundColor: 'rgba(9,12,28,0.88)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.12)',
+  },
+  snapshotIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.9)',
+    marginBottom: 10,
+  },
+  snapshotValue: {
+    color: '#F8FAFC',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  snapshotLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   statsRow: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   statCardPrimary: {
-    flex: 2,
+    flex: 1.85,
     backgroundColor: 'rgba(9,12,28,0.9)',
     borderRadius: 24,
-    padding: 16,
+    padding: 18,
     marginRight: 10,
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
@@ -446,8 +611,8 @@ const styles = StyleSheet.create({
   statPrimaryHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   statColumnRight: {
     flex: 1,
@@ -460,21 +625,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
+    minHeight: 104,
   },
   statLabel: {
     color: '#94A3B8',
     fontSize: 12,
-    marginBottom: 6,
+    marginBottom: 4,
+  },
+  statPeriod: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
   },
   statNumber: {
     color: '#F8FAFC',
-    fontSize: 34,
+    fontSize: 38,
     fontWeight: '800',
   },
   statHint: {
     color: '#CBD5E1',
     fontSize: 12,
     marginTop: 6,
+    lineHeight: 18,
+  },
+  heroMetricsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+  },
+  heroMetricChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,6,23,0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.12)',
+    marginRight: 8,
+    marginTop: 8,
+  },
+  heroMetricChipText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   gradePill: {
     flexDirection: 'row',
@@ -506,13 +701,18 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
   },
+  statSmallHint: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 4,
+  },
   detailRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 16,
-    gap: 10,
   },
   detailCard: {
-    flex: 1,
+    width: '31.5%',
     backgroundColor: 'rgba(9,12,28,0.9)',
     borderRadius: 22,
     paddingVertical: 14,
@@ -530,6 +730,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
   },
+  detailCaption: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 4,
+  },
   chartCard: {
     backgroundColor: 'rgba(9,12,28,0.92)',
     borderRadius: 24,
@@ -545,17 +750,46 @@ const styles = StyleSheet.create({
   chartHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   chartTitle: {
     color: '#E2E8F0',
     fontSize: 16,
     fontWeight: '700',
   },
-  legendRow: {
+  chartSubtitle: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  chartMetaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,6,23,0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.12)',
+  },
+  chartMetaText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 14,
+    marginBottom: 4,
   },
   legendDot: {
     width: 8,
@@ -569,35 +803,90 @@ const styles = StyleSheet.create({
   },
   chartBody: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'stretch',
+  },
+  chartYAxis: {
+    width: 28,
     justifyContent: 'space-between',
-    marginTop: 8,
+    paddingBottom: 24,
+    marginRight: 8,
+  },
+  chartAxisLabel: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  chartPlot: {
+    flex: 1,
+    minHeight: 160,
+  },
+  chartGridLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    borderColor: 'rgba(148,163,184,0.10)',
+  },
+  chartGridLineTop: {
+    top: 8,
+  },
+  chartGridLineMiddle: {
+    top: 64,
+  },
+  chartGridLineBottom: {
+    top: 120,
   },
   chartScrollContent: {
-    paddingHorizontal: 4,
-    paddingRight: 12,
+    alignItems: 'flex-end',
+    paddingLeft: 4,
+    paddingRight: 14,
   },
   chartBarWrapper: {
     alignItems: 'center',
     flex: 0,
-    width: 30,
+    width: 46,
   },
-  chartBarStack: {
-    flexDirection: 'column',
+  chartBarGroup: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    width: 32,
+  },
+  chartMiniBarTrack: {
+    width: 8,
+    height: 104,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.10)',
+    overflow: 'hidden',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    height: 94,
-    width: 18,
   },
-  chartBar: {
-    width: 10,
+  chartMiniBar: {
+    width: '100%',
     borderRadius: 999,
-    marginTop: 2,
+  },
+  chartBarSafe: {
+    backgroundColor: '#34C759',
+  },
+  chartBarCaution: {
+    backgroundColor: '#F59E0B',
+  },
+  chartBarDangerous: {
+    backgroundColor: '#EF4444',
+  },
+  chartValueText: {
+    color: '#E2E8F0',
+    fontSize: 10,
+    fontWeight: '700',
+    minHeight: 16,
+    marginTop: 8,
   },
   chartLabel: {
     color: '#CBD5E1',
     fontSize: 11,
-    marginTop: 6,
+    marginTop: 2,
   },
   chartSubLabel: {
     color: '#64748B',
