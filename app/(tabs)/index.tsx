@@ -3,39 +3,55 @@ import { saveScanToHistory } from '@/utils/historyService';
 import { initializeNotifications } from '@/utils/notificationService';
 import { analyzeUrl } from '@/utils/safetycheck';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Animated, {
-  Easing,
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
+    Easing,
+    interpolateColor,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming,
 } from 'react-native-reanimated';
-
-const { width, height } = Dimensions.get('window'); 
-const SCAN_FRAME_SIZE = width * 0.72;
-const LASER_TRAVEL = SCAN_FRAME_SIZE - 18;
-const CAMERA_CARD_HEIGHT = Math.max(420, Math.min(height * 0.66, 620));
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabOneScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<CameraType>('front');
   const laserProgress = useSharedValue(0);
   const scannerPulse = useSharedValue(0.35);
+
+  const contentHeight = Math.max(0, height - insets.top - insets.bottom);
+  const isCompact = width < 390 || contentHeight < 760;
+  const containerPaddingTop = Math.max(12, insets.top + 8);
+  const containerPaddingBottom = Math.max(12, insets.bottom + 10);
+  const cameraCardHeight = Math.max(360, Math.min(contentHeight * 0.68, 620));
+  const scanFrameSize = Math.min(width * 0.7, cameraCardHeight * 0.52, 310);
+  const laserTravel = Math.max(0, scanFrameSize - 18);
+  const isTorchAvailable = cameraFacing === 'back';
+  const cameraLabel = cameraFacing === 'back' ? (isCompact ? 'Rear' : 'Rear Cam') : (isCompact ? 'Front' : 'Front Cam');
+  const torchLabel = !isTorchAvailable ? (isCompact ? 'No Flash' : 'Flash Unavailable') : isTorchOn ? (isCompact ? 'Torch' : 'Torch On') : 'Torch Off';
 
   useEffect(() => {
     initializeNotifications(); 
   }, []);
+
+  useEffect(() => {
+    if (!isTorchAvailable && isTorchOn) {
+      setIsTorchOn(false);
+    }
+  }, [isTorchAvailable, isTorchOn]);
 
   useEffect(() => {
     if (isScanning && !isAnalyzing) {
@@ -65,7 +81,7 @@ export default function TabOneScreen() {
 
   const laserStyle = useAnimatedStyle(() => ({
     opacity: isScanning && !isAnalyzing ? 0.95 : 0,
-    transform: [{ translateY: laserProgress.value * LASER_TRAVEL }],
+    transform: [{ translateY: laserProgress.value * laserTravel }],
   }));
 
   const scanFrameStyle = useAnimatedStyle(() => ({
@@ -157,8 +173,21 @@ export default function TabOneScreen() {
     setIsScanning(true);
   };
 
+  const handleFlipCamera = () => {
+    setCameraFacing((prev) => (prev === 'back' ? 'front' : 'back'));
+  };
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          paddingTop: containerPaddingTop,
+          paddingBottom: containerPaddingBottom,
+          paddingHorizontal: isCompact ? 12 : 16,
+        },
+      ]}
+    >
       <LinearGradient
         colors={['#000000', '#020617', '#000000']}
         start={{ x: 0, y: 0 }}
@@ -167,7 +196,7 @@ export default function TabOneScreen() {
       />
 
       <GlassCard style={styles.headerCard} glowColor="rgba(0,255,65,0.14)">
-        <View style={styles.header}>
+        <View style={[styles.header, isCompact && styles.headerCompact]}>
           <View style={styles.headerBrandWrap}>
             <LinearGradient
               colors={['rgba(14,165,233,0.28)', 'rgba(0,255,65,0.18)']}
@@ -176,25 +205,26 @@ export default function TabOneScreen() {
               <Ionicons name="qr-code" size={24} color="#E2F3FF" />
             </LinearGradient>
             <View style={styles.headerTextGroup}>
-              <Text style={styles.title}>QR Guardian</Text>
-              <Text style={styles.subtitle}>Premium cyber-security interception</Text>
+              <Text style={[styles.title, isCompact && styles.titleCompact]}>QR Guardian</Text>
+              <Text style={[styles.subtitle, isCompact && styles.subtitleCompact]}>Premium cyber-security interception</Text>
             </View>
           </View>
-          <View style={styles.statusPill}>
+          <View style={[styles.statusPill, isCompact && styles.statusPillCompact]}>
             <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Live protection active</Text>
+            <Text style={styles.statusText}>{isCompact ? 'Protection active' : 'Live protection active'}</Text>
           </View>
         </View>
       </GlassCard>
 
-      <GlassCard style={styles.cameraGradient} glowColor="rgba(56,189,248,0.18)" contentStyle={styles.cameraGlassInner} fill>
-        <View style={styles.cameraContainer}>
+      <GlassCard style={[styles.cameraGradient, { height: cameraCardHeight }]} glowColor="rgba(56,189,248,0.18)" contentStyle={styles.cameraGlassInner} fill>
+        <View style={[styles.cameraContainer, isCompact && styles.cameraContainerCompact]}>
           <CameraView 
             style={styles.camera}
+            facing={cameraFacing}
             barcodeScannerSettings={{
               barcodeTypes: ['qr'],
             }}
-            enableTorch={isTorchOn}
+            enableTorch={isTorchAvailable && isTorchOn}
             onBarcodeScanned={isScanning ? handleBarcodeScanned : undefined}
           />
 
@@ -205,7 +235,8 @@ export default function TabOneScreen() {
             style={styles.cameraOverlay}
           />
           
-          <Animated.View style={[styles.scanFrame, scanFrameStyle]}>
+          <Animated.View style={[styles.scanFrame, scanFrameStyle, { width: scanFrameSize, height: scanFrameSize, top: isCompact ? '18%' : '20%' }]}>
+
             <LinearGradient
               colors={['rgba(56,189,248,0.08)', 'rgba(0,255,65,0.02)']}
               style={StyleSheet.absoluteFillObject}
@@ -228,32 +259,55 @@ export default function TabOneScreen() {
           </Animated.View>
 
           {isScanning && (
-            <View style={styles.scanningTextContainer}>
-              <Text style={styles.scanningText}>Align the QR code inside the secure frame</Text>
-              <Text style={styles.scanningSubtext}>Execution is paused until QR Guardian completes its audit.</Text>
+            <View style={[styles.scanningTextContainer, isCompact && styles.scanningTextContainerCompact]}>
+              <Text style={[styles.scanningText, isCompact && styles.scanningTextCompact]}>Align the QR code inside the secure frame</Text>
+              <Text style={[styles.scanningSubtext, isCompact && styles.scanningSubtextCompact]}>Execution is paused until QR Guardian completes its audit.</Text>
             </View>
           )}
 
-          <View style={styles.flashContainer}>
+          <View style={styles.cameraControlsContainer}>
             <TouchableOpacity
-              style={[styles.flashPill, isTorchOn && styles.flashPillActive]}
-              onPress={() => setIsTorchOn((prev) => !prev)}
+              style={styles.flashPill}
+              onPress={handleFlipCamera}
               activeOpacity={0.9}
+            >
+              <View style={styles.flashPillInner}>
+                <View style={styles.flashIconWrapper}>
+                  <Ionicons
+                    name={cameraFacing === 'back' ? 'camera-reverse-outline' : 'camera-outline'}
+                    size={18}
+                    color="#7DD3FC"
+                  />
+                </View>
+                <Text style={styles.flashLabel}>{cameraLabel}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.flashPill,
+                isTorchOn && styles.flashPillActive,
+                !isTorchAvailable && styles.flashPillDisabled,
+              ]}
+              onPress={() => setIsTorchOn((prev) => !prev)}
+              activeOpacity={isTorchAvailable ? 0.9 : 1}
+              disabled={!isTorchAvailable}
             >
               <View style={styles.flashPillInner}>
                 <View
                   style={[
                     styles.flashIconWrapper,
                     isTorchOn && styles.flashIconWrapperActive,
+                    !isTorchAvailable && styles.flashIconWrapperDisabled,
                   ]}
                 >
                   <Ionicons
                     name={isTorchOn ? 'flash' : 'flash-off'}
                     size={18}
-                    color={isTorchOn ? '#03120B' : '#FFD60A'}
+                    color={!isTorchAvailable ? '#64748B' : isTorchOn ? '#03120B' : '#FFD60A'}
                   />
                 </View>
-                <Text style={styles.flashLabel}>{isTorchOn ? 'Torch On' : 'Torch Off'}</Text>
+                <Text style={[styles.flashLabel, !isTorchAvailable && styles.flashLabelDisabled]}>{torchLabel}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -297,8 +351,7 @@ export default function TabOneScreen() {
           </GlassCard>
         </View>
       )}
-
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -306,9 +359,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-    paddingHorizontal: 16,
-    paddingTop: 52,
-    paddingBottom: 18,
   },
   headerCard: {
     marginBottom: 16,
@@ -319,6 +369,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 18,
     paddingVertical: 18,
+  },
+  headerCompact: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
   },
   headerBrandWrap: {
     flexDirection: 'row',
@@ -343,11 +397,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
   },
+  titleCompact: {
+    fontSize: 20,
+  },
   subtitle: {
     color: '#94A3B8',
     fontSize: 12,
     marginTop: 3,
     letterSpacing: 0.4,
+  },
+  subtitleCompact: {
+    fontSize: 11,
   },
   statusPill: {
     flexDirection: 'row',
@@ -359,6 +419,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,255,65,0.16)',
     marginLeft: 12,
+  },
+  statusPillCompact: {
+    marginLeft: 0,
+    marginTop: 12,
   },
   statusDot: {
     width: 8,
@@ -433,7 +497,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   cameraGradient: {
-    height: CAMERA_CARD_HEIGHT,
     marginBottom: 10,
   },
   cameraGlassInner: {
@@ -441,10 +504,12 @@ const styles = StyleSheet.create({
   },
   cameraContainer: {
     flex: 1,
-    minHeight: 560,
     borderRadius: 23,
     overflow: 'hidden',
     backgroundColor: '#000000',
+  },
+  cameraContainerCompact: {
+    minHeight: 0,
   },
   camera: {
     flex: 1,
@@ -454,10 +519,7 @@ const styles = StyleSheet.create({
   },
   scanFrame: {
     position: 'absolute',
-    top: '20%',
     alignSelf: 'center',
-    width: SCAN_FRAME_SIZE,
-    height: SCAN_FRAME_SIZE,
     borderWidth: 1.5,
     borderRadius: 24,
     shadowColor: '#38BDF8',
@@ -537,11 +599,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
   },
+  scanningTextContainerCompact: {
+    bottom: 70,
+    left: 16,
+    right: 16,
+  },
   scanningText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  scanningTextCompact: {
+    fontSize: 15,
   },
   scanningSubtext: {
     marginTop: 6,
@@ -550,10 +620,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  flashContainer: {
+  scanningSubtextCompact: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  cameraControlsContainer: {
     position: 'absolute',
     bottom: 20,
+    left: 18,
     right: 18,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 10,
   },
   flashPill: {
     paddingHorizontal: 14,
@@ -572,6 +652,11 @@ const styles = StyleSheet.create({
     borderColor: '#FFD60A',
     backgroundColor: 'rgba(255,214,10,0.16)',
   },
+  flashPillDisabled: {
+    borderColor: 'rgba(100,116,139,0.18)',
+    backgroundColor: 'rgba(2,12,27,0.48)',
+    shadowOpacity: 0.08,
+  },
   flashPillInner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -588,10 +673,17 @@ const styles = StyleSheet.create({
   flashIconWrapperActive: {
     backgroundColor: '#FFD60A',
   },
+  flashIconWrapperDisabled: {
+    backgroundColor: 'rgba(100,116,139,0.14)',
+  },
   flashLabel: {
     color: '#E2E8F0',
     fontSize: 13,
     fontWeight: '700',
+    flexShrink: 1,
+  },
+  flashLabelDisabled: {
+    color: '#94A3B8',
   },
   analyzingOverlay: {
     ...StyleSheet.absoluteFillObject,

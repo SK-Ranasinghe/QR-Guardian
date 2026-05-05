@@ -1,27 +1,58 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 10);
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarActiveTintColor: '#7DD3FC',
+        tabBarInactiveTintColor: 'rgba(148,163,184,0.82)',
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: {
+          backgroundColor: 'rgba(2,12,27,0.96)',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(56,189,248,0.18)',
+          height: 70 + bottomInset,
+          paddingTop: 10,
+          paddingBottom: bottomInset,
+          paddingHorizontal: 10,
+          elevation: 0,
+          shadowColor: '#0EA5E9',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: Platform.OS === 'ios' ? 0.16 : 0.24,
+          shadowRadius: 16,
+        },
+        tabBarItemStyle: {
+          borderRadius: 16,
+          marginHorizontal: 2,
+        },
+        tabBarActiveBackgroundColor: 'rgba(14,165,233,0.12)',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Scanner',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="scan-circle" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
