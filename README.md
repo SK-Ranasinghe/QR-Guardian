@@ -246,7 +246,6 @@ This means the system treats scanning and opening as two separate security decis
 
 - **Developer:** Siyath Ranasinghe
 - **Institution:** CICRA Campus
-- **Module:** COM643 Future Technologies
 
 This repository is maintained as part of the dissertation work for QR Guardian and is intended to demonstrate the design and implementation of a mobile AI-assisted framework for detecting and mitigating quishing threats.
 
