@@ -15,7 +15,7 @@ This design allows QR Guardian to behave as a security checkpoint rather than a 
 
 ---
 
-## 2026 Tech Stack
+## Tech Stack
 
 QR Guardian is built on a modern cross-platform mobile stack designed to support rapid development, typed application logic, and integration with AI-assisted security services.
 
