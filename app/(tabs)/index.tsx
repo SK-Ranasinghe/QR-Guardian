@@ -20,6 +20,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const MIN_ANALYSIS_OVERLAY_MS = 1400;
+
 export default function TabOneScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -136,7 +138,10 @@ export default function TabOneScreen() {
     setIsScanning(false);
     setIsAnalyzing(true);
     
-    const result = await analyzeUrl(data);
+    const [result] = await Promise.all([
+      analyzeUrl(data),
+      new Promise((resolve) => setTimeout(resolve, MIN_ANALYSIS_OVERLAY_MS)),
+    ]);
 
     if (result.rating === 'SAFE') {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

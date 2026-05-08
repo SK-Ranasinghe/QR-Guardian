@@ -242,30 +242,6 @@ This means the system treats scanning and opening as two separate security decis
 
 ---
 
-## Security Best Practices
-
-QR Guardian was designed with practical security controls appropriate to a mobile dissertation prototype.
-
-### API Key Handling
-
-- API keys are loaded through `app.config.js`
-- local secrets are expected to live in `.env` or `API.env`
-- environment files are protected by `.gitignore` to reduce the risk of accidental leakage into version control
-
-### Biometric Authentication
-
-- the application uses **biometric authentication** through `expo-local-authentication`
-- app access is gated before the main navigation stack is shown
-- this helps protect locally stored scan history and reduces casual access to sensitive scan results
-
-### Local Privacy Considerations
-
-- scan history is stored locally using AsyncStorage
-- no API keys are embedded directly into committed source files
-- the scanner is designed to inspect content before execution rather than trusting payloads by default
-
----
-
 ## Academic Context
 
 - **Developer:** Siyath Ranasinghe
@@ -275,14 +251,3 @@ QR Guardian was designed with practical security controls appropriate to a mobil
 This repository is maintained as part of the dissertation work for QR Guardian and is intended to demonstrate the design and implementation of a mobile AI-assisted framework for detecting and mitigating quishing threats.
 
 ---
-
-## Appendix E Notes for Examiners
-
-If you are reviewing this project as part of the dissertation appendix, the most important points to evaluate are:
-
-- the **Interception-First** scanning model
-- the structure of the **4-Zone Security Engine**
-- the balance between local heuristics, AI semantics, and external telemetry
-- the way risk is communicated to the user before a payload is opened
-
-In practical terms, QR Guardian should be understood not as a basic QR reader, but as a mobile defensive layer designed to reduce the trust gap that makes quishing effective.
