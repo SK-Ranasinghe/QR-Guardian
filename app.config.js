@@ -56,7 +56,11 @@ export default {
     reactCompiler: true,
   },
   extra: {
-    // Backwards compatible: support both old and new env var names
+    // EAS Project ID manually added to resolve dynamic config error
+    eas: {
+      projectId: "95d21812-382d-4f67-90e1-c9bced90ed04"
+    },
+    // Existing threat intelligence API keys [cite: 1118-1123]
     googleSafeBrowsingApiKey: process.env.GOOGLE_SAFE_BROWSING_API_KEY,
     virusTotalApiKey: process.env.VIRUSTOTAL_API_KEY,
     geminiApiKey:

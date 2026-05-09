@@ -70,29 +70,6 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleSendTestNotification = async () => {
-    // Reuse existing permission state when possible
-    let granted = permissionGranted;
-
-    if (!granted) {
-      granted = await requestNotificationPermissions();
-      setPermissionGranted(granted);
-    }
-
-    if (!granted) {
-      return;
-    }
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'QR Guardian Test Notification',
-        body: 'This is a test alert from QR Guardian.',
-        data: { type: 'test_notification' },
-      },
-      trigger: null,
-    });
-  };
-
   const NotificationOption = ({ 
     icon, 
     title, 
@@ -211,18 +188,6 @@ export default function NotificationsScreen() {
                 </Text>
               </View>
             </View>
-
-            <TouchableOpacity style={styles.testButton} onPress={handleSendTestNotification} activeOpacity={0.9}>
-              <LinearGradient
-                colors={['#0EA5E9', '#22D3EE', '#00FF41']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.testButtonGradient}
-              >
-                <Ionicons name="send" size={20} color="#03120B" />
-                <Text style={styles.testButtonText}>Send Test Notification</Text>
-              </LinearGradient>
-            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -386,26 +351,5 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 12,
     lineHeight: 18,
-  },
-  testButton: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#22D3EE',
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
-  testButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  testButtonText: {
-    color: '#03120B',
-    fontSize: 16,
-    fontWeight: '800',
-    marginLeft: 8,
   },
 });
