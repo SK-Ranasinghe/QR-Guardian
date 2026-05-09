@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function NotificationsScreen() {
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
@@ -16,6 +17,9 @@ export default function NotificationsScreen() {
   const [weeklyReports, setWeeklyReports] = useState(true);
   const [securityTips, setSecurityTips] = useState(true);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isCompactLayout = width < 390;
 
   useEffect(() => {
     loadSettings();
@@ -98,7 +102,7 @@ export default function NotificationsScreen() {
     disabled,
   }: any) => (
     <View style={styles.optionCard}>
-      <View style={styles.optionHeader}>
+      <View style={[styles.optionHeader, isCompactLayout && styles.optionHeaderCompact]}>
         <Ionicons name={icon} size={24} color="#007AFF" />
         <View style={styles.optionText}>
           <Text style={styles.optionTitle}>{title}</Text>
@@ -124,7 +128,7 @@ export default function NotificationsScreen() {
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, isCompactLayout && styles.scrollContentCompact, { paddingTop: Math.max(insets.top + 8, isCompactLayout ? 14 : 18) }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Notifications</Text>
           <Text style={styles.subtitle}>Stay updated on your security</Text>
@@ -196,9 +200,9 @@ export default function NotificationsScreen() {
               />
             </View>
 
-            <View style={styles.infoCard}>
+            <View style={[styles.infoCard, isCompactLayout && styles.infoCardCompact]}>
               <Ionicons name="information-circle" size={24} color="#007AFF" />
-              <View style={styles.infoContent}>
+              <View style={[styles.infoContent, isCompactLayout && styles.infoContentCompact]}>
                 <Text style={styles.infoTitle}>How Notifications Work</Text>
                 <Text style={styles.infoText}>
                   • Threat alerts: Sent when a previously scanned site becomes dangerous
@@ -235,6 +239,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 30,
+  },
+  scrollContentCompact: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
   },
   header: {
     paddingHorizontal: 16,
@@ -328,9 +336,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  optionHeaderCompact: {
+    alignItems: 'flex-start',
+  },
   optionText: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 12,
   },
   optionTitle: {
     color: '#F8FAFC',
@@ -353,9 +365,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(56,189,248,0.12)',
   },
+  infoCardCompact: {
+    flexDirection: 'column',
+  },
   infoContent: {
     flex: 1,
     marginLeft: 12,
+  },
+  infoContentCompact: {
+    marginLeft: 0,
+    marginTop: 10,
   },
   infoTitle: {
     color: '#F8FAFC',

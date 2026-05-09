@@ -30,7 +30,7 @@ export default function TabOneScreen() {
   const [isScanning, setIsScanning] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState<CameraType>('front');
+  const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const laserProgress = useSharedValue(0);
   const scannerPulse = useSharedValue(0.35);
 

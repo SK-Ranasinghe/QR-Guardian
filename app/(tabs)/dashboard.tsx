@@ -3,13 +3,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type RangeKey = '7d' | '30d' | 'all';
 
 export default function DashboardScreen() {
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
   const [range, setRange] = useState<RangeKey>('7d');
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isCompactLayout = width < 390;
 
   const loadHistory = useCallback(async () => {
     const data = await getScanHistory();
@@ -236,13 +240,13 @@ export default function DashboardScreen() {
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <View>
+      <ScrollView contentContainerStyle={[styles.content, isCompactLayout && styles.contentCompact, { paddingTop: Math.max(insets.top + 8, isCompactLayout ? 14 : 18) }]} showsVerticalScrollIndicator={false}>
+        <View style={[styles.headerRow, isCompactLayout && styles.headerRowCompact]}>
+          <View style={styles.headerTextWrap}>
             <Text style={styles.title}>Dashboard</Text>
             <Text style={styles.subtitle}>{subtitleLabel}</Text>
           </View>
-          <View style={styles.rangePillsRow}>
+          <View style={[styles.rangePillsRow, isCompactLayout && styles.rangePillsRowCompact]}>
             {(
               [
                 { key: '7d' as RangeKey, label: '7D' },
@@ -284,22 +288,22 @@ export default function DashboardScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.snapshotRow}>
-              <View style={styles.snapshotCard}>
+            <View style={[styles.snapshotRow, isCompactLayout && styles.snapshotRowCompact]}>
+              <View style={[styles.snapshotCard, isCompactLayout && styles.snapshotCardCompact]}>
                 <View style={styles.snapshotIconWrap}>
                   <Ionicons name="shield-checkmark" size={16} color="#22C55E" />
                 </View>
                 <Text style={styles.snapshotValue}>{safePercent}%</Text>
                 <Text style={styles.snapshotLabel}>Protection rate</Text>
               </View>
-              <View style={styles.snapshotCard}>
+              <View style={[styles.snapshotCard, isCompactLayout && styles.snapshotCardCompact]}>
                 <View style={styles.snapshotIconWrap}>
                   <Ionicons name="calendar-clear" size={16} color="#38BDF8" />
                 </View>
                 <Text style={styles.snapshotValue}>{activeDaysCount}</Text>
                 <Text style={styles.snapshotLabel}>Active days</Text>
               </View>
-              <View style={styles.snapshotCard}>
+              <View style={[styles.snapshotCard, isCompactLayout && styles.snapshotCardCompact]}>
                 <View style={styles.snapshotIconWrap}>
                   <Ionicons name="pulse" size={16} color="#A78BFA" />
                 </View>
@@ -308,9 +312,9 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <View style={styles.statsRow}>
-              <View style={styles.statCardPrimary}>
-                <View style={styles.statPrimaryHeaderRow}>
+            <View style={[styles.statsRow, isCompactLayout && styles.statsRowCompact]}>
+              <View style={[styles.statCardPrimary, isCompactLayout && styles.statCardPrimaryCompact]}>
+                <View style={[styles.statPrimaryHeaderRow, isCompactLayout && styles.statPrimaryHeaderRowCompact]}>
                   <View>
                     <Text style={styles.statLabel}>
                       Total scans {range === '7d' ? '(7 days)' : range === '30d' ? '(30 days)' : '(all time)'}
@@ -338,13 +342,13 @@ export default function DashboardScreen() {
                 </View>
               </View>
 
-              <View style={styles.statColumnRight}>
-                <View style={styles.statCardSmall}>
+              <View style={[styles.statColumnRight, isCompactLayout && styles.statColumnRightCompact]}>
+                <View style={[styles.statCardSmall, isCompactLayout && styles.statCardSmallCompact]}>
                   <Text style={[styles.statBadge, { color: '#34C759' }]}>SAFE</Text>
                   <Text style={styles.statNumberSmall}>{safeCount}</Text>
                   <Text style={styles.statSmallHint}>trusted scans</Text>
                 </View>
-                <View style={styles.statCardSmall}>
+                <View style={[styles.statCardSmall, isCompactLayout && styles.statCardSmallCompact]}>
                   <Text style={[styles.statBadge, { color: '#38BDF8' }]}>AVG / DAY</Text>
                   <Text style={styles.statNumberSmall}>{averageDailyScans}</Text>
                   <Text style={styles.statSmallHint}>across this range</Text>
@@ -352,18 +356,18 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <View style={styles.detailRow}>
-              <View style={styles.detailCard}>
+            <View style={[styles.detailRow, isCompactLayout && styles.detailRowCompact]}>
+              <View style={[styles.detailCard, isCompactLayout && styles.detailCardCompact]}>
                 <Text style={styles.detailLabel}>Caution</Text>
                 <Text style={[styles.detailValue, { color: '#FF9500' }]}>{cautionCount}</Text>
                 <Text style={styles.detailCaption}>Needs a closer look</Text>
               </View>
-              <View style={styles.detailCard}>
+              <View style={[styles.detailCard, isCompactLayout && styles.detailCardCompact]}>
                 <Text style={styles.detailLabel}>Dangerous</Text>
                 <Text style={[styles.detailValue, { color: '#FF3B30' }]}>{dangerousCount}</Text>
                 <Text style={styles.detailCaption}>High-risk detections</Text>
               </View>
-              <View style={styles.detailCard}>
+              <View style={[styles.detailCard, isCompactLayout && styles.detailCardCompact]}>
                 <Text style={styles.detailLabel}>Busiest day</Text>
                 <Text style={[styles.detailValue, { color: '#38BDF8' }]}>{busiestDayCount}</Text>
                 <Text style={styles.detailCaption}>{busiestDayLabel}</Text>
@@ -371,12 +375,12 @@ export default function DashboardScreen() {
             </View>
 
             <View style={styles.chartCard}>
-              <View style={styles.chartHeaderRow}>
+              <View style={[styles.chartHeaderRow, isCompactLayout && styles.chartHeaderRowCompact]}>
                 <View>
                   <Text style={styles.chartTitle}>Scan activity</Text>
                   <Text style={styles.chartSubtitle}>{periodLabel}</Text>
                 </View>
-                <View style={styles.chartMetaBadge}>
+                <View style={[styles.chartMetaBadge, isCompactLayout && styles.chartMetaBadgeCompact]}>
                   <Ionicons name="analytics" size={14} color="#38BDF8" />
                   <Text style={styles.chartMetaText}>{total} scans tracked</Text>
                 </View>
@@ -475,6 +479,10 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 32,
   },
+  contentCompact: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -492,6 +500,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
   },
+  headerRowCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  headerTextWrap: {
+    flexShrink: 1,
+    paddingRight: 12,
+  },
   rangePillsRow: {
     flexDirection: 'row',
     backgroundColor: 'rgba(2,6,23,0.86)',
@@ -499,6 +515,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(56,189,248,0.14)',
+  },
+  rangePillsRowCompact: {
+    marginTop: 12,
   },
   rangePill: {
     paddingHorizontal: 10,
@@ -561,6 +580,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
+  snapshotRowCompact: {
+    flexWrap: 'wrap',
+  },
   snapshotCard: {
     width: '31.5%',
     backgroundColor: 'rgba(9,12,28,0.88)',
@@ -569,6 +591,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
+  },
+  snapshotCardCompact: {
+    width: '48.5%',
+    marginBottom: 10,
   },
   snapshotIconWrap: {
     width: 28,
@@ -594,6 +620,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 14,
   },
+  statsRowCompact: {
+    flexDirection: 'column',
+  },
   statCardPrimary: {
     flex: 1.85,
     backgroundColor: 'rgba(9,12,28,0.9)',
@@ -608,14 +637,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
+  statCardPrimaryCompact: {
+    marginRight: 0,
+    marginBottom: 10,
+  },
   statPrimaryHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 10,
   },
+  statPrimaryHeaderRowCompact: {
+    flexDirection: 'column',
+  },
   statColumnRight: {
     flex: 1,
+    justifyContent: 'space-between',
+  },
+  statColumnRightCompact: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
   },
   statCardSmall: {
@@ -626,6 +666,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
     minHeight: 104,
+  },
+  statCardSmallCompact: {
+    width: '48.5%',
   },
   statLabel: {
     color: '#94A3B8',
@@ -680,6 +723,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: 'rgba(2,6,23,0.8)',
   },
+  gradePillCompact: {
+    marginTop: 10,
+  },
   gradePillGrade: {
     fontSize: 13,
     fontWeight: '800',
@@ -711,6 +757,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
+  detailRowCompact: {
+    flexWrap: 'wrap',
+  },
   detailCard: {
     width: '31.5%',
     backgroundColor: 'rgba(9,12,28,0.9)',
@@ -719,6 +768,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
+  },
+  detailCardCompact: {
+    width: '100%',
+    marginBottom: 10,
   },
   detailLabel: {
     color: '#94A3B8',
@@ -753,6 +806,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 10,
   },
+  chartHeaderRowCompact: {
+    flexDirection: 'column',
+  },
   chartTitle: {
     color: '#E2E8F0',
     fontSize: 16,
@@ -773,6 +829,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(2,6,23,0.76)',
     borderWidth: 1,
     borderColor: 'rgba(56,189,248,0.12)',
+  },
+  chartMetaBadgeCompact: {
+    marginTop: 10,
   },
   chartMetaText: {
     color: '#CBD5E1',

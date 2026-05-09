@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Animated, {
     Easing,
     FadeIn,
@@ -198,6 +198,8 @@ export default function ResultScreen() {
     score?: string;
     issues?: string;
   }>();
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 390;
 
   const url = (params.url as string) || '';
   const rating = (params.rating as string) || 'SAFE';
@@ -206,6 +208,12 @@ export default function ResultScreen() {
 
   const [isFavorited, setIsFavorited] = useState(false);
   const [showRiskModal, setShowRiskModal] = useState(false);
+  const [trustedFeedback, setTrustedFeedback] = useState<{
+    title: string;
+    message: string;
+    icon: 'star' | 'star-outline';
+    accentColor: string;
+  } | null>(null);
   const [isDeepScanLoading, setIsDeepScanLoading] = useState(false);
   const [virusTotalResult, setVirusTotalResult] = useState<VirusTotalSummary | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -353,13 +361,23 @@ export default function ResultScreen() {
       const removed = await removeFromFavorites(domain);
       if (removed) {
         setIsFavorited(false);
-        Alert.alert('Removed from Trusted Sites', 'Domain removed from your trusted list.');
+        setTrustedFeedback({
+          title: 'Removed from Trusted Sites',
+          message: 'This domain was removed from your trusted list.',
+          icon: 'star-outline',
+          accentColor: '#94A3B8',
+        });
       }
     } else {
       const added = await addToFavorites(domain, rating);
       if (added) {
         setIsFavorited(true);
-        Alert.alert('Added to Trusted Sites', 'Domain added to your trusted list.');
+        setTrustedFeedback({
+          title: 'Added to Trusted Sites',
+          message: 'This domain is now saved in your trusted list.',
+          icon: 'star',
+          accentColor: '#FFD700',
+        });
       }
     }
   };
@@ -453,6 +471,10 @@ export default function ResultScreen() {
   const handleRiskConfirm = () => {
     setShowRiskModal(false);
     void performOpen();
+  };
+
+  const handleTrustedFeedbackClose = () => {
+    setTrustedFeedback(null);
   };
 
   const handleDeepScan = async () => {
@@ -596,8 +618,8 @@ export default function ResultScreen() {
           screenAnimatedStyle,
         ]}
       >
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.headerRow}>
+        <ScrollView contentContainerStyle={[styles.content, isCompactLayout && styles.contentCompact]}>
+          <View style={[styles.headerRow, isCompactLayout && styles.headerRowCompact]}>
             <View style={styles.headerLeft}>
               <LinearGradient
                 colors={['rgba(56,189,248,0.22)', 'rgba(0,255,65,0.12)']}
@@ -606,11 +628,11 @@ export default function ResultScreen() {
                 <Ionicons name="shield" size={22} color="#E0F2FE" />
               </LinearGradient>
               <View style={styles.headerTextGroup}>
-                <Text style={styles.title}>Scan Result</Text>
-                <Text style={styles.subtitle}>Premium cyber analysis for this QR payload</Text>
+                <Text style={[styles.title, isCompactLayout && styles.titleCompact]}>Scan Result</Text>
+                <Text style={[styles.subtitle, isCompactLayout && styles.subtitleCompact]}>Premium cyber analysis for this QR payload</Text>
               </View>
             </View>
-            <TouchableOpacity onPress={handleScanAgain} style={styles.headerAction} activeOpacity={0.9}>
+            <TouchableOpacity onPress={handleScanAgain} style={[styles.headerAction, isCompactLayout && styles.headerActionCompact]} activeOpacity={0.9}>
               <Ionicons name="scan-outline" size={18} color="#38BDF8" />
               <Text style={styles.headerActionText}>Scan Again</Text>
             </TouchableOpacity>
@@ -637,7 +659,7 @@ export default function ResultScreen() {
                 <Ionicons name={getRatingIcon(rating)} size={22} color="#03120B" />
                 <Text style={styles.ratingLabel}>{rating}</Text>
               </View>
-              <Text style={styles.scoreValue}>{adjustedScore}</Text>
+              <Text style={[styles.scoreValue, isCompactLayout && styles.scoreValueCompact]}>{adjustedScore}</Text>
               <Text style={styles.scoreSuffix}>/ 100 safety score</Text>
               <Text style={styles.scoreHint}>
                 Higher scores indicate safer destinations based on layered heuristic, intelligence, and semantic checks.
@@ -647,95 +669,13 @@ export default function ResultScreen() {
 
           {issues.length > 0 && (
             <GlassCard style={styles.sectionCardShell} glowColor="rgba(255,215,0,0.12)" contentStyle={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isCompactLayout && styles.sectionHeaderCompact]}>
                 <Text style={styles.sectionTitle}>Security notes</Text>
                 <Text style={styles.sectionCount}>{issues.length} issue{issues.length === 1 ? '' : 's'}</Text>
               </View>
               {issues.map((issue, index) => (
                 <AnimatedIssueItem key={`${issue}-${index}`} issue={issue} index={index} />
               ))}
-            </GlassCard>
-          )}
-
-          {domainIntel && (
-            <GlassCard style={styles.sectionCardShell} glowColor="rgba(56,189,248,0.14)" contentStyle={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Domain profile - IP2LOCATION</Text>
-                {typeof domainIntel.ageDays === 'number' && (
-                  <Text style={styles.sectionCount}>
-                    Age: {domainIntel.ageDays} day{domainIntel.ageDays === 1 ? '' : 's'}
-                  </Text>
-                )}
-              </View>
-
-              {domainIntel.isVeryNew && (
-                <View style={styles.domainIntelWarningPill}>
-                  <Ionicons name="warning" size={14} color="#F97316" />
-                  <Text style={styles.domainIntelWarningText}>
-                    Very new domain detected (&#60;= 7 days). Fresh domains are commonly used in phishing and scam campaigns.
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.domainIntelRow}>
-                <Text style={styles.domainIntelLabel}>Domain</Text>
-                <Text style={styles.domainIntelValue}>{domainIntel.domain}</Text>
-              </View>
-
-              {domainIntel.createdAt && (
-                <View style={styles.domainIntelRow}>
-                  <Text style={styles.domainIntelLabel}>Created</Text>
-                  <Text style={styles.domainIntelValue}>
-                    {new Date(domainIntel.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-              )}
-
-              {domainIntel.expiresAt && (
-                <View style={styles.domainIntelRow}>
-                  <Text style={styles.domainIntelLabel}>Expires</Text>
-                  <Text style={styles.domainIntelValue}>
-                    {new Date(domainIntel.expiresAt).toLocaleDateString()}
-                  </Text>
-                </View>
-              )}
-
-              {domainIntel.registrar && (
-                <View style={styles.domainIntelRow}>
-                  <Text style={styles.domainIntelLabel}>Registrar</Text>
-                  <Text style={styles.domainIntelValue}>{domainIntel.registrar}</Text>
-                </View>
-              )}
-
-              {(domainIntel.countryName || domainIntel.countryCode) && (
-                <View style={styles.domainIntelRow}>
-                  <Text style={styles.domainIntelLabel}>Country</Text>
-                  <Text style={styles.domainIntelValue}>
-                    {domainIntel.countryName || domainIntel.countryCode}
-                  </Text>
-                </View>
-              )}
-
-              {domainIntel.nameservers && domainIntel.nameservers.length > 0 && (
-                <View style={styles.domainIntelRowColumn}>
-                  <Text style={styles.domainIntelLabel}>Nameservers</Text>
-                  <Text style={styles.domainIntelValue}>
-                    {domainIntel.nameservers.join(', ')}
-                  </Text>
-                </View>
-              )}
-
-              {domainIntel.raw && (
-                <View style={styles.domainIntelRawBlock}>
-                  <Text style={styles.domainIntelRawTitle}>Full WHOIS data</Text>
-                  {buildWhoisEntries(domainIntel.raw).map((entry) => (
-                    <View key={entry.key} style={styles.domainIntelRawRow}>
-                      <Text style={styles.domainIntelRawKey}>{entry.key}</Text>
-                      <Text style={styles.domainIntelRawValue}>{entry.value}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
             </GlassCard>
           )}
 
@@ -758,7 +698,7 @@ export default function ResultScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.deepScanButton} onPress={handleDeepScan} activeOpacity={0.9}>
+          <TouchableOpacity style={[styles.deepScanButton, virusTotalResult && styles.actionButtonAttached]} onPress={handleDeepScan} activeOpacity={0.9}>
             <Ionicons name="shield-checkmark" size={20} color="#22C55E" />
             <View style={styles.deepScanTextGroup}>
               <Text style={styles.deepScanTitle}>Deep Scan</Text>
@@ -769,26 +709,15 @@ export default function ResultScreen() {
             {isDeepScanLoading ? <InlineLoader /> : <Ionicons name="chevron-forward" size={18} color="#6B7280" />}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.domainIntelButton} onPress={handleDomainIntel} activeOpacity={0.9}>
-            <Ionicons name="globe-outline" size={20} color="#38BDF8" />
-            <View style={styles.domainIntelTextGroup}>
-              <Text style={styles.domainIntelTitle}>Domain intelligence</Text>
-              <Text style={styles.domainIntelSubtitle}>
-                Check domain age, registrar and WHOIS-style details via IP2LOCATION.
-              </Text>
-            </View>
-            {isDomainIntelLoading ? <InlineLoader /> : <Ionicons name="chevron-forward" size={18} color="#6B7280" />}
-          </TouchableOpacity>
-
           {virusTotalResult && (
             <Animated.View entering={FadeIn.duration(360)}>
               <GlassCard style={styles.sectionCardShell} glowColor="rgba(34,197,94,0.1)" contentStyle={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
+                <View style={[styles.sectionHeader, isCompactLayout && styles.sectionHeaderCompact]}>
                   <Text style={styles.sectionTitle}>Deep Scan - VirusTotal</Text>
                   <Text style={styles.sectionCount}>External threat database</Text>
                 </View>
 
-                <View style={styles.vtRow}>
+                <View style={[styles.vtRow, isCompactLayout && styles.vtRowCompact]}>
                   <View style={styles.vtPillHarmless}>
                     <Text style={styles.vtPillLabel}>Harmless</Text>
                     <Text style={styles.vtPillValue}>{virusTotalResult.harmless}</Text>
@@ -872,7 +801,100 @@ export default function ResultScreen() {
             </Animated.View>
           )}
 
-          <TouchableOpacity style={styles.aiButton} onPress={handleAiAnalysis} activeOpacity={0.9}>
+          <TouchableOpacity style={[styles.domainIntelButton, domainIntel && styles.actionButtonAttached]} onPress={handleDomainIntel} activeOpacity={0.9}>
+            <Ionicons name="globe-outline" size={20} color="#38BDF8" />
+            <View style={styles.domainIntelTextGroup}>
+              <Text style={styles.domainIntelTitle}>Domain intelligence</Text>
+              <Text style={styles.domainIntelSubtitle}>
+                Check domain age, registrar and WHOIS-style details via IP2LOCATION.
+              </Text>
+            </View>
+            {isDomainIntelLoading ? <InlineLoader /> : <Ionicons name="chevron-forward" size={18} color="#6B7280" />}
+          </TouchableOpacity>
+
+          {domainIntel && (
+            <GlassCard style={styles.sectionCardShell} glowColor="rgba(56,189,248,0.14)" contentStyle={styles.sectionCard}>
+              <View style={[styles.sectionHeader, isCompactLayout && styles.sectionHeaderCompact]}>
+                <Text style={styles.sectionTitle}>Domain profile - IP2LOCATION</Text>
+                {typeof domainIntel.ageDays === 'number' && (
+                  <Text style={styles.sectionCount}>
+                    Age: {domainIntel.ageDays} day{domainIntel.ageDays === 1 ? '' : 's'}
+                  </Text>
+                )}
+              </View>
+
+              {domainIntel.isVeryNew && (
+                <View style={styles.domainIntelWarningPill}>
+                  <Ionicons name="warning" size={14} color="#F97316" />
+                  <Text style={styles.domainIntelWarningText}>
+                    Very new domain detected (&#60;= 7 days). Fresh domains are commonly used in phishing and scam campaigns.
+                  </Text>
+                </View>
+              )}
+
+              <View style={[styles.domainIntelRow, isCompactLayout && styles.domainIntelRowCompact]}>
+                <Text style={styles.domainIntelLabel}>Domain</Text>
+                <Text style={[styles.domainIntelValue, isCompactLayout && styles.domainIntelValueCompact]}>{domainIntel.domain}</Text>
+              </View>
+
+              {domainIntel.createdAt && (
+                <View style={[styles.domainIntelRow, isCompactLayout && styles.domainIntelRowCompact]}>
+                  <Text style={styles.domainIntelLabel}>Created</Text>
+                  <Text style={[styles.domainIntelValue, isCompactLayout && styles.domainIntelValueCompact]}>
+                    {new Date(domainIntel.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.expiresAt && (
+                <View style={[styles.domainIntelRow, isCompactLayout && styles.domainIntelRowCompact]}>
+                  <Text style={styles.domainIntelLabel}>Expires</Text>
+                  <Text style={[styles.domainIntelValue, isCompactLayout && styles.domainIntelValueCompact]}>
+                    {new Date(domainIntel.expiresAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.registrar && (
+                <View style={[styles.domainIntelRow, isCompactLayout && styles.domainIntelRowCompact]}>
+                  <Text style={styles.domainIntelLabel}>Registrar</Text>
+                  <Text style={[styles.domainIntelValue, isCompactLayout && styles.domainIntelValueCompact]}>{domainIntel.registrar}</Text>
+                </View>
+              )}
+
+              {(domainIntel.countryName || domainIntel.countryCode) && (
+                <View style={[styles.domainIntelRow, isCompactLayout && styles.domainIntelRowCompact]}>
+                  <Text style={styles.domainIntelLabel}>Country</Text>
+                  <Text style={[styles.domainIntelValue, isCompactLayout && styles.domainIntelValueCompact]}>
+                    {domainIntel.countryName || domainIntel.countryCode}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.nameservers && domainIntel.nameservers.length > 0 && (
+                <View style={styles.domainIntelRowColumn}>
+                  <Text style={styles.domainIntelLabel}>Nameservers</Text>
+                  <Text style={styles.domainIntelValue}>
+                    {domainIntel.nameservers.join(', ')}
+                  </Text>
+                </View>
+              )}
+
+              {domainIntel.raw && (
+                <View style={styles.domainIntelRawBlock}>
+                  <Text style={styles.domainIntelRawTitle}>Full WHOIS data</Text>
+                  {buildWhoisEntries(domainIntel.raw).map((entry) => (
+                    <View key={entry.key} style={styles.domainIntelRawRow}>
+                      <Text style={styles.domainIntelRawKey}>{entry.key}</Text>
+                      <Text style={styles.domainIntelRawValue}>{entry.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </GlassCard>
+          )}
+
+          <TouchableOpacity style={[styles.aiButton, aiInsight && styles.actionButtonAttached]} onPress={handleAiAnalysis} activeOpacity={0.9}>
             <Ionicons name="sparkles-outline" size={20} color="#38BDF8" />
             <View style={styles.aiButtonTextGroup}>
               <Text style={styles.aiButtonTitle}>Run AI Analysis</Text>
@@ -903,7 +925,7 @@ export default function ResultScreen() {
                     { backgroundColor: getAiAccentColor(aiInsight.verdict) },
                   ]}
                 />
-                <View style={styles.aiHeaderRow}>
+                <View style={[styles.aiHeaderRow, isCompactLayout && styles.aiHeaderRowCompact]}>
                   <View style={styles.aiIconCircle}>
                     <Ionicons
                       name={getAiVerdictIcon(aiInsight.verdict)}
@@ -918,6 +940,7 @@ export default function ResultScreen() {
                   <View
                     style={[
                       styles.aiVerdictPill,
+                      isCompactLayout && styles.aiVerdictPillCompact,
                       aiInsight.verdict === 'SAFE'
                         ? styles.aiVerdictSafe
                         : aiInsight.verdict === 'SUSPICIOUS'
@@ -931,7 +954,7 @@ export default function ResultScreen() {
                   </View>
                 </View>
 
-                <View style={styles.aiMetaRow}>
+                <View style={[styles.aiMetaRow, isCompactLayout && styles.aiMetaRowCompact]}>
                   <View style={styles.aiMetaChip}>
                     <Text style={styles.aiMetaLabel}>Threat type</Text>
                     <Text style={styles.aiMetaValue}>{aiInsight.threatType}</Text>
@@ -947,7 +970,7 @@ export default function ResultScreen() {
                   <Text style={styles.aiReasonText}>{aiInsight.reason}</Text>
                 </View>
 
-                <View style={styles.aiRiskRow}>
+                <View style={[styles.aiRiskRow, isCompactLayout && styles.aiRiskRowCompact]}>
                   <Text style={styles.aiRiskLabel}>AI confidence meter</Text>
                   <Text style={styles.aiRiskValue}>{aiInsight.verdict}</Text>
                 </View>
@@ -996,12 +1019,29 @@ export default function ResultScreen() {
                   {'\n'}
                   {'\n'}Lower scores can indicate phishing, hidden charges, or risky destinations.
                 </Text>
-                <View style={styles.riskButtonsRow}>
-                  <TouchableOpacity style={styles.riskCancelButton} onPress={handleRiskCancel} activeOpacity={0.9}>
+                <View style={[styles.riskButtonsRow, isCompactLayout && styles.riskButtonsRowCompact]}>
+                  <TouchableOpacity style={[styles.riskCancelButton, isCompactLayout && styles.riskButtonCompact]} onPress={handleRiskCancel} activeOpacity={0.9}>
                     <Text style={styles.riskCancelText}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.riskConfirmButton} onPress={handleRiskConfirm} activeOpacity={0.9}>
+                  <TouchableOpacity style={[styles.riskConfirmButton, isCompactLayout && styles.riskButtonCompact]} onPress={handleRiskConfirm} activeOpacity={0.9}>
                     <Text style={styles.riskConfirmText}>Open anyway</Text>
+                  </TouchableOpacity>
+                </View>
+              </GlassCard>
+            </View>
+          )}
+
+          {trustedFeedback && (
+            <View style={styles.riskOverlay}>
+              <GlassCard style={styles.riskCardShell} glowColor={`${trustedFeedback.accentColor}88`} contentStyle={[styles.riskCard, styles.trustedFeedbackCard]}>
+                <View style={[styles.riskIconWrapper, styles.trustedFeedbackIconWrapper, { backgroundColor: `${trustedFeedback.accentColor}22` }]}>
+                  <Ionicons name={trustedFeedback.icon} size={24} color={trustedFeedback.accentColor} />
+                </View>
+                <Text style={styles.riskTitle}>{trustedFeedback.title}</Text>
+                <Text style={styles.riskMessage}>{trustedFeedback.message}</Text>
+                <View style={styles.trustedFeedbackButtonRow}>
+                  <TouchableOpacity style={[styles.riskConfirmButton, styles.trustedFeedbackButton, { backgroundColor: trustedFeedback.accentColor }]} onPress={handleTrustedFeedbackClose} activeOpacity={0.9}>
+                    <Text style={styles.trustedFeedbackButtonText}>Got it</Text>
                   </TouchableOpacity>
                 </View>
               </GlassCard>
@@ -1026,11 +1066,19 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
+  contentCompact: {
+    paddingHorizontal: 14,
+    paddingTop: 16,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 20,
+  },
+  headerRowCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -1056,10 +1104,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
   },
+  titleCompact: {
+    fontSize: 20,
+  },
   subtitle: {
     color: '#94A3B8',
     fontSize: 12,
     marginTop: 2,
+  },
+  subtitleCompact: {
+    fontSize: 11,
   },
   headerAction: {
     flexDirection: 'row',
@@ -1071,6 +1125,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(56,189,248,0.18)',
     marginLeft: 8,
+  },
+  headerActionCompact: {
+    marginLeft: 0,
+    marginTop: 12,
+    alignSelf: 'flex-start',
   },
   headerActionText: {
     color: '#38BDF8',
@@ -1111,6 +1170,9 @@ const styles = StyleSheet.create({
     fontSize: 46,
     fontWeight: '800',
   },
+  scoreValueCompact: {
+    fontSize: 38,
+  },
   scoreSuffix: {
     color: '#E2E8F0',
     fontSize: 14,
@@ -1136,6 +1198,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  sectionHeaderCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -1144,6 +1210,7 @@ const styles = StyleSheet.create({
   sectionCount: {
     color: '#94A3B8',
     fontSize: 12,
+    marginTop: 4,
   },
   issueRow: {
     flexDirection: 'row',
@@ -1207,6 +1274,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(34,197,94,0.16)',
     marginBottom: 14,
   },
+  actionButtonAttached: {
+    marginBottom: 10,
+  },
   deepScanTextGroup: {
     flex: 1,
     marginLeft: 10,
@@ -1226,6 +1296,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 8,
   },
+  vtRowCompact: {
+    flexWrap: 'wrap',
+  },
   vtRowSecondary: {
     marginTop: 10,
   },
@@ -1243,6 +1316,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flex: 1,
     marginRight: 6,
+    minWidth: 88,
+    marginBottom: 6,
   },
   vtPillSuspicious: {
     backgroundColor: 'rgba(245,158,11,0.12)',
@@ -1251,6 +1326,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flex: 1,
     marginHorizontal: 3,
+    minWidth: 88,
+    marginBottom: 6,
   },
   vtPillMalicious: {
     backgroundColor: 'rgba(248,113,113,0.12)',
@@ -1259,6 +1336,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flex: 1,
     marginLeft: 6,
+    minWidth: 88,
+    marginBottom: 6,
   },
   vtPillLabel: {
     color: '#9CA3AF',
@@ -1338,6 +1417,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6,
   },
+  domainIntelRowCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
   domainIntelRowColumn: {
     marginTop: 6,
   },
@@ -1351,6 +1434,12 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flexShrink: 1,
     textAlign: 'right',
+  },
+  domainIntelValueCompact: {
+    marginLeft: 0,
+    marginTop: 4,
+    textAlign: 'left',
+    width: '100%',
   },
   domainIntelRawBlock: {
     marginTop: 10,
@@ -1440,9 +1529,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   riskCardShell: {
     width: '85%',
+    maxWidth: 380,
   },
   riskCard: {
     backgroundColor: 'rgba(5,10,20,0.92)',
@@ -1477,6 +1568,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
+  riskButtonsRowCompact: {
+    flexDirection: 'column-reverse',
+    alignItems: 'stretch',
+  },
   riskCancelButton: {
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -1484,6 +1579,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3A3A3C',
     marginRight: 8,
+  },
+  riskButtonCompact: {
+    marginRight: 0,
+    marginTop: 8,
+    alignItems: 'center',
   },
   riskCancelText: {
     color: '#8E8E93',
@@ -1500,6 +1600,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
+  },
+  trustedFeedbackCard: {
+    alignItems: 'center',
+  },
+  trustedFeedbackIconWrapper: {
+    marginBottom: 14,
+  },
+  trustedFeedbackButtonRow: {
+    width: '100%',
+    marginTop: 2,
+  },
+  trustedFeedbackButton: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  trustedFeedbackButtonText: {
+    color: '#03120B',
+    fontSize: 13,
+    fontWeight: '800',
   },
   primaryButton: {
     flexDirection: 'row',
@@ -1564,6 +1683,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  aiHeaderRowCompact: {
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
   aiIconCircle: {
     width: 36,
     height: 36,
@@ -1595,6 +1718,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
+  aiVerdictPillCompact: {
+    marginTop: 12,
+  },
   aiVerdictSafe: {
     backgroundColor: 'rgba(34,197,94,0.18)',
   },
@@ -1617,6 +1743,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     flexDirection: 'row',
     gap: 10,
+  },
+  aiMetaRowCompact: {
+    flexDirection: 'column',
   },
   aiMetaChip: {
     flex: 1,
@@ -1663,6 +1792,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  aiRiskRowCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
   aiRiskLabel: {
     color: '#9CA3AF',
     fontSize: 12,
@@ -1671,6 +1804,7 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 13,
     fontWeight: '600',
+    marginTop: 4,
   },
   aiRiskBarTrack: {
     marginTop: 8,
