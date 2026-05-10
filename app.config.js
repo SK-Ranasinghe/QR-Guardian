@@ -65,7 +65,8 @@ export default {
     virusTotalApiKey: process.env.VIRUSTOTAL_API_KEY,
     geminiApiKey:
       process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
-    geminiModel: process.env.GEMINI_MODEL,
+    geminiModel:
+      process.env.EXPO_PUBLIC_GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     ip2LocationApiKey: process.env.IP2LOCATION_API_KEY,
   },
 };
